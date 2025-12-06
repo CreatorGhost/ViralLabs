@@ -1,0 +1,56 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+utubenv/
+venv/
+.venv/
+env/
+.env.local
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Build outputs
+frontend/dist
+frontend-minimal/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test & Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Misc
+*.log
+*.tmp
+*.bak
+test_output/
+*.md
+cloudflare-r2-migration.plan.md
+
+# Local data (will be mounted as volumes)
+generated_thumbnails/
+user_data/
+uploads/
