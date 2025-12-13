@@ -283,7 +283,7 @@ export const DEFAULT_STUDIO_SETTINGS: StudioModeSettings = {
   enable_thumbnails: true,
   num_thumbnails: 3,
   resolution: '1K',
-  use_reference_images: false,
+  use_reference_images: true,  // Use YouTube thumbnails as style references
   include_face: false,
   face_mode: 'auto',
   face_style: 'realistic',

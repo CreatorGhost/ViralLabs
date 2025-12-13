@@ -38,7 +38,6 @@ RUN pip install --upgrade pip uv && uv pip install --system -r requirements.txt
 # Copy application code
 COPY backend/ ./backend/
 COPY src/ ./src/
-COPY main.py ./
 
 # Copy built frontend from builder stage
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist

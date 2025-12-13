@@ -44,6 +44,9 @@ class ThumbnailGenerator:
                 "Get your API key from: https://ai.google.dev/"
             )
         
+        # Log last 5 chars of API key for debugging
+        print(f"🔑 Gemini API Key (last 5 chars): ...{api_key[-5:]}")
+        
         self.client = genai.Client(api_key=api_key)
     
     def generate_thumbnail(

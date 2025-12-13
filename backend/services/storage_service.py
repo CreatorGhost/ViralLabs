@@ -215,6 +215,60 @@ class StorageService:
             extension = f".{extension}"
         
         return f"{file_type}/{user_id}/{filename}{extension}"
+    
+    async def download(self, storage_type: str, storage_key: str) -> Optional[bytes]:
+        """
+        Download file from storage.
+        
+        Args:
+            storage_type: "local" or "r2"
+            storage_key: The key/path used when uploading
+            
+        Returns:
+            File bytes or None if not found
+        """
+        try:
+            if storage_type == "local":
+                path = Path(storage_key)
+                if path.exists():
+                    with open(path, "rb") as f:
+                        return f.read()
+                return None
+            else:
+                # Download from R2
+                response = self.s3_client.get_object(
+                    Bucket=settings.r2_bucket_name,
+                    Key=storage_key
+                )
+                return response["Body"].read()
+        except Exception as e:
+            print(f"Error downloading file from {storage_type}: {e}")
+            return None
+    
+    async def download_to_path(
+        self, 
+        storage_type: str, 
+        storage_key: str, 
+        local_path: Path
+    ) -> bool:
+        """
+        Download file from storage to a local path.
+        
+        Args:
+            storage_type: "local" or "r2"
+            storage_key: The key/path used when uploading
+            local_path: Local path to save the file
+            
+        Returns:
+            True if downloaded successfully
+        """
+        data = await self.download(storage_type, storage_key)
+        if data:
+            local_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(local_path, "wb") as f:
+                f.write(data)
+            return True
+        return False
 
 
 # Global storage service instance

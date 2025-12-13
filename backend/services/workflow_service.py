@@ -8,7 +8,7 @@ import sys
 import json
 import asyncio
 from pathlib import Path
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 from concurrent.futures import ThreadPoolExecutor
 
 # Add parent directory to path for imports
@@ -40,7 +40,8 @@ class WorkflowStreamService:
     async def generate_stream(
         self,
         request: FullWorkflowRequest,
-        session_id: str
+        session_id: str,
+        face_path: Optional[Path] = None
     ) -> AsyncGenerator[str, None]:
         """
         Async generator that yields SSE events during the full workflow.
@@ -48,6 +49,7 @@ class WorkflowStreamService:
         Args:
             request: Full workflow request parameters
             session_id: User session identifier
+            face_path: Optional path to face image (already downloaded if from R2)
             
         Yields:
             SSE formatted strings for each event
@@ -270,16 +272,33 @@ class WorkflowStreamService:
             if request.enable_thumbnails:
                 current_step = SSEService.STEP_THUMBNAILS
                 
-                face_path = self.session_manager.get_face_path(session_id)
+                # Use provided face_path (already downloaded if from R2) or fall back to session
+                effective_face_path = face_path or self.session_manager.get_face_path(session_id)
+                
+                # Get video IDs for reference thumbnail download
+                youtube_video_ids = None
+                print(f"🔍 DEBUG: use_reference_images={request.use_reference_images}, top_videos count={len(top_videos) if top_videos else 0}")
+                if request.use_reference_images and top_videos:
+                    youtube_video_ids = [v.get('video_id') for v in top_videos if v.get('video_id')]
+                    if youtube_video_ids:
+                        print(f"📥 Will use {len(youtube_video_ids)} YouTube videos as thumbnail references")
+                    else:
+                        print("⚠️ No video IDs found in top_videos")
+                else:
+                    if not request.use_reference_images:
+                        print("ℹ️ Reference images disabled in request")
+                    if not top_videos:
+                        print("⚠️ No top_videos available for reference")
                 
                 async for event in self.thumbnail_service.generate_parallel_stream(
                     topic=request.topic,
                     num_thumbnails=request.num_thumbnails,
                     resolution=request.resolution,
-                    face_path=face_path,
+                    face_path=effective_face_path,
                     face_mode=request.face_mode,
                     face_style=request.face_style,
-                    use_reference_images=request.use_reference_images
+                    use_reference_images=request.use_reference_images,
+                    youtube_video_ids=youtube_video_ids
                 ):
                     if event:
                         yield event

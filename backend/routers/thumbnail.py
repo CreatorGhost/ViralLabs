@@ -2,10 +2,14 @@
 Thumbnail generation endpoints.
 Single Responsibility: Only handles thumbnail generation/regeneration routes.
 Uses CloudFlare R2 or local storage based on configuration.
+
+Supports configurable providers via IMAGE_PROVIDER env var:
+- "gemini": Google Gemini 3 Pro Image
+- "seedream": BytePlus Seedream 4.0/4.5
 """
 
 import os
-from datetime import datetime
+import tempfile
 from pathlib import Path
 from uuid import UUID
 from fastapi import APIRouter, HTTPException, Depends
@@ -13,7 +17,6 @@ from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from backend.core.config import THUMBNAILS_DIR
 from backend.core.database import get_db
 from backend.core.dependencies import get_current_user
 from backend.models.db_models import User, MediaFile
@@ -24,9 +27,13 @@ from backend.models.schemas import (
     ThumbnailRegenerateRequest,
     ThumbnailResponse,
 )
+from src.image_factory import get_current_provider
 
 router = APIRouter(tags=["Thumbnail"])
 thumbnail_service = ThumbnailService()
+
+# Temp directory for downloaded faces (persists across requests)
+_face_temp_dir = tempfile.mkdtemp(prefix="faces_")
 
 
 @router.post("/generate/thumbnails", response_model=ThumbnailResponse)
@@ -37,14 +44,33 @@ async def generate_thumbnails(
 ):
     """Generate thumbnails for a video topic."""
     
-    gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-    if not gemini_key:
-        raise HTTPException(status_code=400, detail="GEMINI_API_KEY not set")
+    # Check API key based on configured provider
+    provider = get_current_provider()
+    if provider == "gemini":
+        if not (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")):
+            raise HTTPException(status_code=400, detail="GEMINI_API_KEY not set")
+    elif provider == "seedream":
+        if not os.getenv("ARK_API_KEY"):
+            raise HTTPException(status_code=400, detail="ARK_API_KEY not set for Seedream")
     
     try:
+        # ===== REQUEST PARAMETERS LOGGING =====
+        print("\n" + "=" * 70)
+        print("🎬 THUMBNAIL GENERATION REQUEST")
+        print("=" * 70)
+        print(f"📋 Topic: {request.topic}")
+        print(f"🔢 Number of thumbnails: {request.num_thumbnails}")
+        print(f"📐 Resolution: {request.resolution}")
+        print(f"👤 Include face: {'✅ YES' if request.include_face else '❌ NO'}")
+        print(f"🖼️ Use reference images: {'✅ YES' if request.use_reference_images else '❌ NO'}")
+        if request.youtube_video_ids:
+            print(f"📺 YouTube video IDs: {len(request.youtube_video_ids)} provided")
+        print("=" * 70)
+        
         # Get face path from user's uploaded face if enabled
         face_path = None
         if request.include_face:
+            print(f"\n👤 Looking for user's face in database...")
             # Get user's current face from database
             face_query = select(MediaFile).where(
                 MediaFile.user_id == current_user.id,
@@ -53,9 +79,33 @@ async def generate_thumbnails(
             result = await db.execute(face_query)
             face_file = result.scalar_one_or_none()
             
-            if face_file and face_file.storage_type == "local":
-                face_path = Path(face_file.storage_key)
-            # For R2 faces, we'd need to download first - skip for now
+            if face_file:
+                print(f"   ✅ Face found in database!")
+                print(f"   📁 Storage type: {face_file.storage_type}")
+                print(f"   🔑 Storage key: {face_file.storage_key}")
+                
+                if face_file.storage_type == "local":
+                    face_path = Path(face_file.storage_key)
+                    print(f"   📍 Using local path: {face_path}")
+                elif face_file.storage_type == "r2":
+                    # Download R2 face to temp file
+                    ext = Path(face_file.original_filename or "face.png").suffix or ".png"
+                    temp_face_path = Path(_face_temp_dir) / f"face_{current_user.id}{ext}"
+                    
+                    print(f"   📥 Downloading face from R2...")
+                    downloaded = await storage_service.download_to_path(
+                        storage_type="r2",
+                        storage_key=face_file.storage_key,
+                        local_path=temp_face_path
+                    )
+                    
+                    if downloaded:
+                        face_path = temp_face_path
+                        print(f"   ✅ Face downloaded to: {temp_face_path}")
+                    else:
+                        print(f"   ❌ Failed to download face from R2!")
+            else:
+                print(f"   ⚠️ No face found in database for user {current_user.id}")
         
         # Generate with storage and DB tracking
         result = await thumbnail_service.generate_batch_with_storage(
@@ -67,7 +117,8 @@ async def generate_thumbnails(
             face_path=face_path,
             face_mode=request.face_mode,
             face_style=request.face_style,
-            use_reference_images=request.use_reference_images
+            use_reference_images=request.use_reference_images,
+            youtube_video_ids=request.youtube_video_ids
         )
         
         return ThumbnailResponse(
@@ -93,6 +144,7 @@ async def regenerate_thumbnails(
         num_thumbnails=request.num_thumbnails,
         resolution=request.resolution,
         use_reference_images=request.use_reference_images,
+        youtube_video_ids=request.youtube_video_ids,
         include_face=request.include_face,
         face_mode=request.face_mode,
         face_style=request.face_style
@@ -128,20 +180,7 @@ async def list_thumbnails(
             "created": t.created_at.isoformat() if t.created_at else None,
             "metadata": t.file_metadata,
         })
-    
-    # Also include any legacy local thumbnails not in database
-    for f in THUMBNAILS_DIR.glob("*.png"):
-        # Check if already in the list
-        filename = f.name
-        if not any(t.get("filename") == filename for t in thumbnail_list):
-            thumbnail_list.append({
-                "filename": filename,
-                "url": f"/thumbnails/{filename}",
-                "path": f"/thumbnails/{filename}",
-                "created": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
-                "metadata": {"legacy": True}
-            })
-    
+
     return {"thumbnails": thumbnail_list}
 
 
@@ -162,17 +201,13 @@ async def get_thumbnail(
     result = await db.execute(query)
     thumb = result.scalar_one_or_none()
     
-    if thumb:
-        if thumb.storage_type == "r2":
-            return RedirectResponse(url=thumb.storage_url)
-        return FileResponse(thumb.storage_key)
-    
-    # Fallback to legacy local storage
-    filepath = THUMBNAILS_DIR / filename
-    if not filepath.exists():
+    if not thumb:
         raise HTTPException(status_code=404, detail="Thumbnail not found")
-    
-    return FileResponse(filepath)
+
+    if thumb.storage_type == "r2":
+        return RedirectResponse(url=thumb.storage_url)
+
+    return FileResponse(thumb.storage_key)
 
 
 @router.get("/thumbnail/id/{thumbnail_id}")
@@ -222,19 +257,13 @@ async def delete_thumbnail(
     result = await db.execute(query)
     thumb = result.scalar_one_or_none()
     
-    if thumb:
-        await storage_service.delete(thumb.storage_type, thumb.storage_key)
-        await db.delete(thumb)
-        await db.commit()
-        return {"success": True, "message": f"Deleted {filename}"}
-    
-    # Fallback to legacy local storage
-    filepath = THUMBNAILS_DIR / filename
-    if filepath.exists():
-        filepath.unlink()
-        return {"success": True, "message": f"Deleted {filename}"}
-    
-    raise HTTPException(status_code=404, detail="Thumbnail not found")
+    if not thumb:
+        raise HTTPException(status_code=404, detail="Thumbnail not found")
+
+    await storage_service.delete(thumb.storage_type, thumb.storage_key)
+    await db.delete(thumb)
+    await db.commit()
+    return {"success": True, "message": f"Deleted {filename}"}
 
 
 @router.delete("/thumbnail/id/{thumbnail_id}")

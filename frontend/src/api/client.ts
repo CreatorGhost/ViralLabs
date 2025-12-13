@@ -138,8 +138,8 @@ export const deleteFace = async (sessionId: string = 'default'): Promise<{ succe
   return response.json();
 };
 
-export const getFaceUrl = (sessionId: string = 'default'): string => {
-  return `${API_BASE}/face/${sessionId}`;
+export const getFaceUrl = (): string => {
+  return `${API_BASE}/face/me`;
 };
 
 // ============================================

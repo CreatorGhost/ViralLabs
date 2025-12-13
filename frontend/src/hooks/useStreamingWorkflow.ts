@@ -8,6 +8,7 @@ import type {
   SSEEvent,
 } from '../types';
 import { API_BASE } from '../config';
+import { getAuthHeaders } from '../api/auth';
 
 interface UseStreamingWorkflowReturn {
   startGeneration: (request: FullWorkflowRequest, sessionId: string) => void;
@@ -158,6 +159,9 @@ export function useStreamingWorkflow(): UseStreamingWorkflowReturn {
       abortControllerRef.current = new AbortController();
 
       try {
+        // Get auth headers to include JWT token
+        const authHeaders = getAuthHeaders();
+        
         const response = await fetch(
           `${API_BASE}/generate/full-workflow/stream?session_id=${sessionId}`,
           {
@@ -165,6 +169,7 @@ export function useStreamingWorkflow(): UseStreamingWorkflowReturn {
             headers: {
               'Content-Type': 'application/json',
               'Accept': 'text/event-stream',
+              ...authHeaders,  // Include Authorization header
             },
             body: JSON.stringify(request),
             signal: abortControllerRef.current.signal,

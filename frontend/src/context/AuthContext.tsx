@@ -233,4 +233,3 @@ export function ProtectedRoute({ children, fallback }: ProtectedRouteProps) {
 }
 
 export default AuthContext;
-

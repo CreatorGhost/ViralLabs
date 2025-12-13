@@ -3,11 +3,21 @@ Thumbnail generation service.
 Single Responsibility: Only handles thumbnail generation logic.
 Open/Closed: Can extend generation strategies without modifying core logic.
 Uses CloudFlare R2 or local storage based on configuration.
+
+Supports configurable providers via IMAGE_PROVIDER env var:
+- "gemini": Google Gemini 3 Pro Image
+- "seedream": BytePlus Seedream 4.0/4.5
+
+Features:
+- YouTube thumbnail download for reference-based generation
+- Face integration support
+- Multi-provider support (Gemini/Seedream)
 """
 
 import sys
 import asyncio
 import tempfile
+import httpx
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Dict, Any, AsyncGenerator
@@ -19,7 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from src.thumbnail_generator import ThumbnailGenerator
+from src.image_factory import ImageGeneratorFactory, get_current_provider
 from backend.services.sse import SSEService
 from backend.services.storage_service import storage_service
 from backend.models.db_models import MediaFile
@@ -30,18 +40,16 @@ class ThumbnailService:
     
     def __init__(
         self,
-        model: str = "gemini-3-pro-image-preview",
         aspect_ratio: str = "16:9"
     ):
-        self.model = model
         self.aspect_ratio = aspect_ratio
+        self.provider = get_current_provider()
+        print(f"🖼️ ThumbnailService initialized with provider: {self.provider}")
     
-    def _create_generator(self, resolution: str, output_dir: str) -> ThumbnailGenerator:
-        """Create a new ThumbnailGenerator instance."""
-        return ThumbnailGenerator(
-            model=self.model,
+    def _create_generator(self, resolution: str, output_dir: str):
+        """Create a new image generator using the factory."""
+        return ImageGeneratorFactory.create(
             output_dir=output_dir,
-            aspect_ratio=self.aspect_ratio,
             resolution=resolution
         )
     
@@ -50,6 +58,91 @@ class ThumbnailService:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         clean_topic = topic.replace(' ', '_')[:30]
         return f"thumbnail_{clean_topic}_{timestamp}_v{index+1}"
+    
+    async def download_youtube_thumbnails(
+        self,
+        video_ids: List[str],
+        output_dir: str,
+        max_thumbnails: int = 5
+    ) -> List[str]:
+        """
+        Download YouTube thumbnails as reference images.
+        
+        Args:
+            video_ids: List of YouTube video IDs
+            output_dir: Directory to save thumbnails
+            max_thumbnails: Maximum number to download
+            
+        Returns:
+            List of downloaded file paths
+        """
+        downloaded = []
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        
+        # YouTube thumbnail URL formats (highest quality first)
+        url_formats = [
+            "https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg",
+            "https://i.ytimg.com/vi/{video_id}/sddefault.jpg",
+            "https://i.ytimg.com/vi/{video_id}/hqdefault.jpg",
+        ]
+        
+        async with httpx.AsyncClient(timeout=10) as client:
+            for video_id in video_ids[:max_thumbnails]:
+                for url_template in url_formats:
+                    url = url_template.format(video_id=video_id)
+                    try:
+                        response = await client.get(url)
+                        if response.status_code == 200 and len(response.content) > 1000:
+                            # Save thumbnail
+                            filepath = output_path / f"yt_ref_{video_id}.jpg"
+                            with open(filepath, 'wb') as f:
+                                f.write(response.content)
+                            downloaded.append(str(filepath))
+                            print(f"📥 Downloaded YouTube thumbnail: {video_id}")
+                            break
+                    except Exception as e:
+                        continue
+        
+        print(f"✅ Downloaded {len(downloaded)} YouTube reference thumbnails")
+        return downloaded
+    
+    def download_youtube_thumbnails_sync(
+        self,
+        video_ids: List[str],
+        output_dir: str,
+        max_thumbnails: int = 5
+    ) -> List[str]:
+        """Synchronous version of download_youtube_thumbnails."""
+        import requests
+        
+        downloaded = []
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        
+        url_formats = [
+            "https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg",
+            "https://i.ytimg.com/vi/{video_id}/sddefault.jpg", 
+            "https://i.ytimg.com/vi/{video_id}/hqdefault.jpg",
+        ]
+        
+        for video_id in video_ids[:max_thumbnails]:
+            for url_template in url_formats:
+                url = url_template.format(video_id=video_id)
+                try:
+                    response = requests.get(url, timeout=10)
+                    if response.status_code == 200 and len(response.content) > 1000:
+                        filepath = output_path / f"yt_ref_{video_id}.jpg"
+                        with open(filepath, 'wb') as f:
+                            f.write(response.content)
+                        downloaded.append(str(filepath))
+                        print(f"📥 Downloaded YouTube thumbnail: {video_id}")
+                        break
+                except Exception:
+                    continue
+        
+        print(f"✅ Downloaded {len(downloaded)} YouTube reference thumbnails")
+        return downloaded
     
     def _build_prompt(self, topic: str) -> str:
         """Build the prompt for thumbnail generation."""
@@ -74,7 +167,8 @@ Requirements:
         face_path: Optional[Path] = None,
         face_mode: str = "auto",
         face_style: str = "realistic",
-        use_reference_images: bool = False
+        use_reference_images: bool = False,
+        youtube_video_ids: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         Generate a single thumbnail synchronously to a temp directory.
@@ -88,6 +182,7 @@ Requirements:
             face_mode: Face placement mode
             face_style: Face rendering style
             use_reference_images: Whether to use reference images
+            youtube_video_ids: List of YouTube video IDs to download thumbnails from
             
         Returns:
             Dict with generation result
@@ -95,7 +190,70 @@ Requirements:
         generator = self._create_generator(resolution, output_dir)
         filename = self._generate_filename(topic, index)
         
-        if face_path and face_path.exists():
+        # ===== DETAILED LOGGING =====
+        print("\n" + "=" * 60)
+        print(f"🎨 THUMBNAIL GENERATION #{index + 1}")
+        print("=" * 60)
+        print(f"📋 Topic: {topic[:50]}...")
+        print(f"📐 Resolution: {resolution}")
+        
+        # Check face availability
+        has_face = face_path and face_path.exists()
+        if face_path:
+            print(f"👤 Face path provided: {face_path}")
+            print(f"   Face exists: {'✅ YES' if has_face else '❌ NO (file not found)'}")
+        else:
+            print(f"👤 Face: ❌ Not provided")
+        
+        # Check reference images
+        reference_images = []
+        if use_reference_images:
+            print(f"🖼️ Reference images: ✅ Enabled")
+            
+            # Priority 1: Download YouTube thumbnails if video IDs provided
+            if youtube_video_ids and len(youtube_video_ids) > 0:
+                print(f"   📥 YouTube video IDs: {len(youtube_video_ids)} provided")
+                ref_dir = Path(output_dir) / "yt_references"
+                reference_images = self.download_youtube_thumbnails_sync(
+                    video_ids=youtube_video_ids,
+                    output_dir=str(ref_dir),
+                    max_thumbnails=5
+                )
+                print(f"   📥 Downloaded: {len(reference_images)} reference thumbnails")
+            else:
+                print(f"   ⚠️ No YouTube video IDs provided")
+            
+            # Priority 2: Fall back to local thumbnails directory
+            if not reference_images:
+                thumbnail_dir = Path("thumbnails")
+                if thumbnail_dir.exists():
+                    reference_images = [str(img) for img in thumbnail_dir.glob("*.jpg")][:5]
+                    if reference_images:
+                        print(f"   📁 Using {len(reference_images)} local reference images")
+        else:
+            print(f"🖼️ Reference images: ❌ Disabled")
+        
+        # ===== GENERATION LOGIC =====
+        print("-" * 60)
+        
+        if has_face and reference_images:
+            # BOTH face AND reference images available
+            print(f"🚀 GENERATION MODE: Face + Reference Images")
+            print(f"   👤 Using face: {face_path}")
+            print(f"   🖼️ Using {len(reference_images)} reference images")
+            result = generator.generate_thumbnail_with_face(
+                video_title=topic,
+                face_image_path=str(face_path),
+                face_mode=face_mode,
+                face_style=face_style,
+                reference_images=reference_images,  # Pass reference images too!
+                filename=filename,
+                resolution=resolution
+            )
+        elif has_face:
+            # Only face available
+            print(f"🚀 GENERATION MODE: Face Only")
+            print(f"   👤 Using face: {face_path}")
             result = generator.generate_thumbnail_with_face(
                 video_title=topic,
                 face_image_path=str(face_path),
@@ -104,25 +262,23 @@ Requirements:
                 filename=filename,
                 resolution=resolution
             )
-        elif use_reference_images:
-            thumbnail_dir = Path("thumbnails")
-            reference_images = []
-            if thumbnail_dir.exists():
-                reference_images = [str(img) for img in thumbnail_dir.glob("*.jpg")][:5]
-            
-            if reference_images:
-                result = generator.generate_thumbnail_with_reference(
-                    reference_images=reference_images,
-                    video_title=topic,
-                    filename=filename,
-                    resolution=resolution
-                )
-            else:
-                prompt = self._build_prompt(topic)
-                result = generator.generate_thumbnail(prompt=prompt, filename=filename)
+        elif reference_images:
+            # Only reference images available
+            print(f"🚀 GENERATION MODE: Reference Images Only")
+            print(f"   🖼️ Using {len(reference_images)} reference images")
+            result = generator.generate_thumbnail_with_reference(
+                reference_images=reference_images,
+                video_title=topic,
+                filename=filename,
+                resolution=resolution
+            )
         else:
+            # No face, no reference images - prompt only
+            print(f"🚀 GENERATION MODE: Prompt Only (no face, no references)")
             prompt = self._build_prompt(topic)
             result = generator.generate_thumbnail(prompt=prompt, filename=filename)
+        
+        print("=" * 60 + "\n")
         
         result['index'] = index
         result['filename'] = filename
@@ -137,7 +293,8 @@ Requirements:
         face_path: Optional[Path] = None,
         face_mode: str = "auto",
         face_style: str = "realistic",
-        use_reference_images: bool = False
+        use_reference_images: bool = False,
+        youtube_video_ids: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """Generate a single thumbnail asynchronously."""
         loop = asyncio.get_event_loop()
@@ -153,7 +310,8 @@ Requirements:
                     face_path=face_path,
                     face_mode=face_mode,
                     face_style=face_style,
-                    use_reference_images=use_reference_images
+                    use_reference_images=use_reference_images,
+                    youtube_video_ids=youtube_video_ids
                 )
             )
         
@@ -169,7 +327,8 @@ Requirements:
         face_path: Optional[Path] = None,
         face_mode: str = "auto",
         face_style: str = "realistic",
-        use_reference_images: bool = False
+        use_reference_images: bool = False,
+        youtube_video_ids: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         Generate a thumbnail and store it in cloud storage with DB tracking.
@@ -184,6 +343,7 @@ Requirements:
             face_mode: Face placement mode
             face_style: Face rendering style
             use_reference_images: Whether to use reference images
+            youtube_video_ids: YouTube video IDs to download thumbnails as references
             
         Returns:
             Dict with storage URL and metadata
@@ -198,7 +358,8 @@ Requirements:
                 face_path=face_path,
                 face_mode=face_mode,
                 face_style=face_style,
-                use_reference_images=use_reference_images
+                use_reference_images=use_reference_images,
+                youtube_video_ids=youtube_video_ids
             )
             
             if not result.get('success') or not result.get('filepath'):
@@ -249,6 +410,7 @@ Requirements:
                 "width": result.get('width'),
                 "height": result.get('height'),
                 "model": result.get('model'),
+                "provider": self.provider,
             }
         )
         db.add(media_file)
@@ -275,7 +437,8 @@ Requirements:
         face_path: Optional[Path] = None,
         face_mode: str = "auto",
         face_style: str = "realistic",
-        use_reference_images: bool = False
+        use_reference_images: bool = False,
+        youtube_video_ids: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         Generate multiple thumbnails sequentially (legacy - no storage).
@@ -297,7 +460,8 @@ Requirements:
                 face_path=face_path,
                 face_mode=face_mode,
                 face_style=face_style,
-                use_reference_images=use_reference_images
+                use_reference_images=use_reference_images,
+                youtube_video_ids=youtube_video_ids
             )
             results.append(result)
         
@@ -319,10 +483,14 @@ Requirements:
         face_path: Optional[Path] = None,
         face_mode: str = "auto",
         face_style: str = "realistic",
-        use_reference_images: bool = False
+        use_reference_images: bool = False,
+        youtube_video_ids: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         Generate multiple thumbnails with storage and DB tracking.
+        
+        Args:
+            youtube_video_ids: YouTube video IDs to download thumbnails as references
         
         Returns:
             Dict with success status, thumbnails list, and count
@@ -339,7 +507,8 @@ Requirements:
                 face_path=face_path,
                 face_mode=face_mode,
                 face_style=face_style,
-                use_reference_images=use_reference_images
+                use_reference_images=use_reference_images,
+                youtube_video_ids=youtube_video_ids
             )
             results.append(result)
         
@@ -362,6 +531,7 @@ Requirements:
         use_reference_images: bool = False,
         user_id: Optional[UUID] = None,
         db: Optional[AsyncSession] = None,
+        youtube_video_ids: Optional[List[str]] = None,
     ) -> AsyncGenerator[str, None]:
         """
         Generate thumbnails in parallel and yield SSE events as each completes.
@@ -395,7 +565,8 @@ Requirements:
                     face_path=face_path,
                     face_mode=face_mode,
                     face_style=face_style,
-                    use_reference_images=use_reference_images
+                    use_reference_images=use_reference_images,
+                    youtube_video_ids=youtube_video_ids
                 ))
                 for i in range(num_thumbnails)
             ]
@@ -410,7 +581,8 @@ Requirements:
                     face_path=face_path,
                     face_mode=face_mode,
                     face_style=face_style,
-                    use_reference_images=use_reference_images
+                    use_reference_images=use_reference_images,
+                    youtube_video_ids=youtube_video_ids
                 ))
                 for i in range(num_thumbnails)
             ]

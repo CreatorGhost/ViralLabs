@@ -298,4 +298,3 @@ export const authFetch = async (
   
   return response;
 };
-

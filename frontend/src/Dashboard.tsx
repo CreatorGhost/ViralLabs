@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import CrystalDock, { TabId } from './components/CrystalDock';
 import { WorkflowPage, ThumbnailStudioPage, ImageStudioPage, AudioStudioPage, SettingsPage } from './pages';
 import { getSession } from './api/client';
-import { getSessionId, API_BASE } from './config';
+import { getSessionId } from './config';
 import { useAuth } from './hooks';
 
 // Shared state for passing script to audio page
@@ -47,7 +47,7 @@ export default function Dashboard() {
           const includeByDefault = prefs ? JSON.parse(prefs).includeFaceByDefault ?? true : true;
           
           setFaceState({
-            facePreview: `${API_BASE}/face/${sessionId}?t=${Date.now()}`,
+            facePreview: session.face_path ?? null,
             faceUploaded: true,
             includeFace: includeByDefault,
           });
@@ -69,7 +69,7 @@ export default function Dashboard() {
       if (session.has_face && session.face_path) {
         setFaceState(prev => ({
           ...prev,
-          facePreview: `${API_BASE}/face/${sessionId}?t=${Date.now()}`,
+          facePreview: session.face_path ?? null,
           faceUploaded: true,
         }));
       } else {
@@ -135,7 +135,7 @@ export default function Dashboard() {
       />
 
       {/* Page Content with Fluid Transitions */}
-      <div className="pt-24">
+      <div className="pt-14 md:pt-24 pb-28 md:pb-0">
         <AnimatePresence mode="wait">
           {activeTab === 'workflow' && (
             <motion.div

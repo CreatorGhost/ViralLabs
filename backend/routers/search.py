@@ -39,10 +39,16 @@ async def search_videos(request: SearchVideosRequest, session_id: str = "default
     """
     
     if not os.getenv("YOUTUBE_API_KEY"):
-        raise HTTPException(status_code=400, detail="YOUTUBE_API_KEY not set")
+        raise HTTPException(
+            status_code=400, 
+            detail="YOUTUBE_API_KEY not set. Add it to your .env file to enable video search."
+        )
     
     if not os.getenv("OPENAI_API_KEY"):
-        raise HTTPException(status_code=400, detail="OPENAI_API_KEY not set")
+        raise HTTPException(
+            status_code=400, 
+            detail="OPENAI_API_KEY not set. Add it to your .env file for query refinement."
+        )
     
     try:
         loop = asyncio.get_event_loop()

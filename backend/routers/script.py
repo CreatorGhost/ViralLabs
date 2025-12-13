@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from main import generate_youtube_script, regenerate_script_only
+from src.script_generator import generate_youtube_script, regenerate_script_only
 from backend.core.session import session_manager
 from backend.models.schemas import (
     ScriptGenerateRequest,
@@ -132,5 +132,7 @@ async def regenerate_script_from_session(
     )
     
     return await regenerate_script(request, session_id)
+
+
 
 

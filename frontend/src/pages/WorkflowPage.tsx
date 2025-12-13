@@ -145,7 +145,7 @@ export default function WorkflowPage({ onGenerateAudio, includeFace = false }: W
     enable_thumbnails: true,
     num_thumbnails: 3,
     resolution: '1K',
-    use_reference_images: false,
+    use_reference_images: true,  // Use YouTube thumbnails as style references
     include_face: false,
     face_mode: 'auto',
     face_style: 'realistic',
@@ -267,6 +267,8 @@ export default function WorkflowPage({ onGenerateAudio, includeFace = false }: W
         max_videos: videosToAnalyze * 2,
         enable_thumbnails: quickSettings.includeThumbnails,
         num_thumbnails: 3,
+        // Use YouTube thumbnails as style references
+        use_reference_images: true,
         // Face inclusion is controlled globally from Dashboard
         include_face: includeFace,
       }, sessionId);
@@ -281,6 +283,8 @@ export default function WorkflowPage({ onGenerateAudio, includeFace = false }: W
         enable_thumbnails: studioSettings.enable_thumbnails,
         num_thumbnails: studioSettings.num_thumbnails,
         resolution: studioSettings.resolution,
+        // Use YouTube thumbnails as style references
+        use_reference_images: studioSettings.use_reference_images,
         // Face inclusion is controlled globally from Dashboard
         include_face: includeFace,
         face_mode: studioSettings.face_mode,

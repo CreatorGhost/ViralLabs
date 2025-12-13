@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
 import { 
-  Sparkles, 
+  Sparkles,
   Mail, 
   Lock, 
   Eye, 
@@ -84,9 +84,11 @@ export default function LoginPage() {
         >
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 mb-10">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-white" />
-            </div>
+            <img
+              src="/logo.jpeg"
+              alt="ViralLab logo"
+              className="w-10 h-10 rounded-xl object-cover"
+            />
             <span className="text-xl font-semibold tracking-tight">ViralLab</span>
           </Link>
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { 
   Sparkles, 
   FileText, 
@@ -34,9 +34,9 @@ function App() {
         </div>
         <div className="hidden md:flex items-center gap-1 px-2 py-1.5 rounded-full bg-white/5 border border-white/10">
           <a href="#features" className="px-4 py-1.5 text-sm text-white/70 hover:text-white transition-colors">Product</a>
-          <a href="#pricing" className="px-4 py-1.5 text-sm text-white/70 hover:text-white transition-colors">Pricing</a>
-          <a href="#about" className="px-4 py-1.5 text-sm text-white/70 hover:text-white transition-colors">Company</a>
-          <a href="#blog" className="px-4 py-1.5 text-sm text-white/70 hover:text-white transition-colors">Blog</a>
+          <Link to="/pricing" className="px-4 py-1.5 text-sm text-white/70 hover:text-white transition-colors">Pricing</Link>
+          <Link to="/about" className="px-4 py-1.5 text-sm text-white/70 hover:text-white transition-colors">Company</Link>
+          <Link to="/contact" className="px-4 py-1.5 text-sm text-white/70 hover:text-white transition-colors">Contact</Link>
         </div>
         <div className="flex items-center gap-3">
           <button 
@@ -845,11 +845,9 @@ function App() {
             <div>
               <h4 className="font-semibold mb-4">Product</h4>
               <ul className="space-y-3">
-                <li><a href="#" className="text-sm text-white/50 hover:text-white transition-colors">Features</a></li>
-                <li><a href="#" className="text-sm text-white/50 hover:text-white transition-colors">Integrations</a></li>
-                <li><a href="#" className="text-sm text-white/50 hover:text-white transition-colors">Pricing</a></li>
-                <li><a href="#" className="text-sm text-white/50 hover:text-white transition-colors">Changelog</a></li>
-                <li><a href="#" className="text-sm text-white/50 hover:text-white transition-colors">Roadmap</a></li>
+                <li><a href="#features" className="text-sm text-white/50 hover:text-white transition-colors">Features</a></li>
+                <li><Link to="/pricing" className="text-sm text-white/50 hover:text-white transition-colors">Pricing</Link></li>
+                <li><Link to="/signup" className="text-sm text-white/50 hover:text-white transition-colors">Free Trial</Link></li>
               </ul>
             </div>
 
@@ -857,19 +855,18 @@ function App() {
             <div>
               <h4 className="font-semibold mb-4">Company</h4>
               <ul className="space-y-3">
-                <li><a href="#" className="text-sm text-white/50 hover:text-white transition-colors">Our team</a></li>
-                <li><a href="#" className="text-sm text-white/50 hover:text-white transition-colors">Our values</a></li>
-                <li><a href="#" className="text-sm text-white/50 hover:text-white transition-colors">Blog</a></li>
+                <li><Link to="/about" className="text-sm text-white/50 hover:text-white transition-colors">About Us</Link></li>
+                <li><Link to="/contact" className="text-sm text-white/50 hover:text-white transition-colors">Contact</Link></li>
               </ul>
             </div>
 
-            {/* Resources Links */}
+            {/* Legal Links */}
             <div>
-              <h4 className="font-semibold mb-4">Resources</h4>
+              <h4 className="font-semibold mb-4">Legal</h4>
               <ul className="space-y-3">
-                <li><a href="#" className="text-sm text-white/50 hover:text-white transition-colors">Downloads</a></li>
-                <li><a href="#" className="text-sm text-white/50 hover:text-white transition-colors">Documentation</a></li>
-                <li><a href="#" className="text-sm text-white/50 hover:text-white transition-colors">Contact</a></li>
+                <li><Link to="/terms" className="text-sm text-white/50 hover:text-white transition-colors">Terms of Service</Link></li>
+                <li><Link to="/privacy" className="text-sm text-white/50 hover:text-white transition-colors">Privacy Policy</Link></li>
+                <li><Link to="/refund" className="text-sm text-white/50 hover:text-white transition-colors">Refund Policy</Link></li>
               </ul>
             </div>
           </div>
@@ -900,14 +897,16 @@ function App() {
 
         {/* Bottom Bar */}
         <div className="border-t border-white/5">
-          <div className="max-w-6xl mx-auto px-6 py-6 flex items-center justify-between">
+          <div className="max-w-6xl mx-auto px-6 py-6 flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-4 text-sm text-white/40">
-              <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>
+              <Link to="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
               <span>·</span>
-              <a href="#" className="hover:text-white transition-colors">Terms of Service</a>
+              <Link to="/terms" className="hover:text-white transition-colors">Terms of Service</Link>
+              <span>·</span>
+              <Link to="/refund" className="hover:text-white transition-colors">Refund Policy</Link>
             </div>
             <div className="text-sm text-white/40">
-              ViralLab, Inc. All rights reserved.
+              © 2024 ViralLab. All rights reserved.
             </div>
           </div>
         </div>

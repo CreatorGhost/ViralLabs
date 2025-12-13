@@ -286,9 +286,9 @@ export default function SignupPage() {
             {/* Terms */}
             <p className="text-xs text-white/40">
               By creating an account, you agree to our{' '}
-              <a href="#" className="text-violet-400 hover:underline">Terms of Service</a>
+              <Link to="/terms" className="text-violet-400 hover:underline">Terms of Service</Link>
               {' '}and{' '}
-              <a href="#" className="text-violet-400 hover:underline">Privacy Policy</a>
+              <Link to="/privacy" className="text-violet-400 hover:underline">Privacy Policy</Link>
             </p>
 
             {/* Submit Button */}

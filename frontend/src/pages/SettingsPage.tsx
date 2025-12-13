@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { uploadFace, deleteFace, getSession } from '../api/client';
 import { getActiveSessions, revokeSession, logoutAll } from '../api/auth';
-import { getSessionId, API_BASE } from '../config';
+import { getSessionId } from '../config';
 import { useAuth } from '../hooks';
 import type { SessionInfo } from '../types/auth';
 
@@ -61,7 +61,8 @@ export default function SettingsPage({ onFaceChange }: SettingsPageProps) {
         const session = await getSession(sessionId);
         if (session.has_face && session.face_path) {
           setFaceUploaded(true);
-          setFacePreview(`${API_BASE}/face/${sessionId}?t=${Date.now()}`);
+          // Use the face_path directly (it's the full R2 URL)
+          setFacePreview(session.face_path);
         }
       } catch (e) {
         // Session doesn't exist or no face - that's fine
@@ -138,10 +139,10 @@ export default function SettingsPage({ onFaceChange }: SettingsPageProps) {
     setUploadError(null);
     try {
       const response = await uploadFace(file, sessionId);
-      if (response.success) {
+      if (response.success && response.filepath) {
         setFaceUploaded(true);
-        // Refresh preview from server
-        setFacePreview(`${API_BASE}/face/${sessionId}?t=${Date.now()}`);
+        // Use the filepath from response (R2 URL)
+        setFacePreview(response.filepath);
         // Notify parent that face changed
         onFaceChange?.();
       } else {

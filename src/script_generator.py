@@ -440,3 +440,145 @@ def generate_script_advanced(
     )
     return pipeline.generate_script_with_metadata(user_query)
 
+
+def generate_youtube_script(
+    topic: str,
+    model: str = "gpt-5.1",
+    refine_model: str = "gpt-5-nano",
+    max_videos: int = 15,
+    top_n: int = 7,
+    subscriber_threshold: int = 50000,
+    max_workers: int = 5
+) -> Dict:
+    """
+    Generate a YouTube script from a topic (API wrapper).
+    
+    Args:
+        topic: User's topic/query
+        model: OpenAI model for script generation
+        refine_model: Model for query refinement
+        max_videos: Maximum videos to search
+        top_n: Top N videos to analyze
+        subscriber_threshold: Minimum subscribers
+        max_workers: Parallel workers
+        
+    Returns:
+        Dict with script and all metadata
+    """
+    pipeline = ScriptGeneratorPipeline(
+        model=model,
+        refine_model=refine_model,
+        max_videos=max_videos,
+        top_n_videos=top_n,
+        subscriber_threshold=subscriber_threshold,
+        max_workers=max_workers
+    )
+    
+    # Step 1: Refine query
+    refined_query = pipeline.refine_chain.invoke(topic)
+    
+    # Step 2: Fetch transcripts
+    research_data = pipeline.youtube_research_chain.invoke({
+        "refined_query": refined_query,
+        "original_query": topic
+    })
+    
+    # Step 3: Generate script
+    script = pipeline.script_chain.invoke(research_data)
+    
+    return {
+        'success': True,
+        'script': script,
+        'refined_query': refined_query,
+        'original_query': topic,
+        'videos_analyzed': research_data.get('video_count', 0),
+        'combined_transcripts': research_data.get('transcripts'),
+        'metadata': research_data.get('metadata', {}),
+        'stats': {
+            'total_videos': research_data.get('metadata', {}).get('total_videos', 0),
+            'successful_transcripts': research_data.get('metadata', {}).get('successful_transcripts', 0),
+        }
+    }
+
+
+def regenerate_script_only(
+    original_query: str,
+    refined_query: str,
+    combined_transcripts: str,
+    video_count: int = 0,
+    model: str = "gpt-5.1",
+    temperature: float = 0.7
+) -> Dict:
+    """
+    Regenerate script using existing transcripts (no new YouTube fetch).
+    
+    Args:
+        original_query: Original user query
+        refined_query: Refined search query
+        combined_transcripts: Pre-fetched transcripts
+        video_count: Number of videos analyzed
+        model: OpenAI model for generation
+        temperature: Creativity level
+        
+    Returns:
+        Dict with regenerated script
+    """
+    llm = ChatOpenAI(model=model, temperature=temperature)
+    
+    script_prompt = ChatPromptTemplate.from_template("""
+You are an expert YouTube scriptwriter. Write a complete video script that will be read aloud by text-to-speech software.
+
+TOPIC: {original_query}
+RESEARCH QUERY: {refined_query}
+VIDEOS ANALYZED: {video_count}
+
+RESEARCH TRANSCRIPTS:
+{transcripts}
+
+═══════════════════════════════════════════════════════════════════════════════
+CRITICAL: OUTPUT RAW SPOKEN TEXT ONLY
+═══════════════════════════════════════════════════════════════════════════════
+
+⚠️ ABSOLUTE REQUIREMENTS - VIOLATION WILL FAIL THE TASK:
+1. NO square brackets of any kind: [INTRO], [HOOK], [CONCLUSION], [CTA] etc. are FORBIDDEN
+2. NO section headers or labels whatsoever
+3. NO markdown formatting (no **, no ##, no bullets)
+4. NO timestamps or time markers
+5. NO stage directions or visual cues
+6. ONLY output the exact words to be spoken - nothing else
+
+Your output must be readable from start to finish as one continuous script.
+
+STYLE:
+- Conversational, like talking to a friend
+- Use contractions (you're, don't, it's)
+- Vary sentence length
+- Energetic but authentic
+- 1,200-1,800 words total
+
+NOW OUTPUT THE RAW SCRIPT (just the spoken words, absolutely no labels or formatting):
+
+""")
+    
+    script_chain = script_prompt | llm | StrOutputParser()
+    
+    script = script_chain.invoke({
+        'original_query': original_query,
+        'refined_query': refined_query,
+        'transcripts': combined_transcripts,
+        'video_count': video_count
+    })
+    
+    return {
+        'success': True,
+        'script': script,
+        'refined_query': refined_query,
+        'original_query': original_query,
+        'videos_analyzed': video_count,
+        'stats': {
+            'regenerated': True,
+            'model': model,
+            'temperature': temperature
+        }
+    }
+

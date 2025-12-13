@@ -2,6 +2,10 @@
 Simple Image generation endpoints.
 Takes a prompt and generates images directly without complex video analysis.
 Supports optional face integration and R2 storage.
+
+Configurable providers via IMAGE_PROVIDER env var:
+- "gemini": Google Gemini 3 Pro Image
+- "seedream": BytePlus Seedream 4.0/4.5
 """
 
 import os
@@ -21,7 +25,7 @@ from backend.core.database import get_db
 from backend.core.dependencies import get_current_user
 from backend.models.db_models import User, MediaFile
 from backend.services.storage_service import storage_service
-from src.thumbnail_generator import ThumbnailGenerator
+from src.image_factory import ImageGeneratorFactory, get_current_provider
 
 
 router = APIRouter(prefix="/image", tags=["Image Generation"])
@@ -35,6 +39,7 @@ class ImageGenerateRequest(BaseModel):
     include_face: bool = Field(default=False, description="Include user's uploaded face")
     face_mode: str = Field(default="auto", description="Face placement: auto, center, left, right")
     face_style: str = Field(default="realistic", description="Face style: realistic, professional, cartoon")
+    provider: Optional[str] = Field(default=None, description="Override provider: gemini or seedream")
 
 
 class GeneratedImage(BaseModel):
@@ -68,10 +73,21 @@ async def generate_images(
     Simple endpoint that takes a prompt and generates the specified number of images.
     Optionally includes the user's uploaded face in the generation.
     Images are stored in R2 (or local) and tracked in the database.
+    
+    Provider can be configured via:
+    - IMAGE_PROVIDER env var (default)
+    - request.provider field (override per-request)
     """
-    gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-    if not gemini_key:
-        raise HTTPException(status_code=400, detail="GEMINI_API_KEY not set")
+    # Determine provider
+    provider = request.provider or get_current_provider()
+    
+    # Validate provider has required API keys
+    if provider == "gemini":
+        if not (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")):
+            raise HTTPException(status_code=400, detail="GEMINI_API_KEY not set")
+    elif provider == "seedream":
+        if not os.getenv("ARK_API_KEY"):
+            raise HTTPException(status_code=400, detail="ARK_API_KEY not set for Seedream")
     
     try:
         # Get user's face if requested
@@ -95,10 +111,10 @@ async def generate_images(
         
         # Use temp directory for generation, then upload to storage
         with tempfile.TemporaryDirectory() as temp_dir:
-            generator = ThumbnailGenerator(
-                model="gemini-3-pro-image-preview",
+            # Create generator using factory - picks Gemini or Seedream based on config
+            generator = ImageGeneratorFactory.create(
+                provider=provider,
                 output_dir=temp_dir,
-                aspect_ratio="16:9",
                 resolution=request.resolution
             )
             
@@ -113,7 +129,7 @@ async def generate_images(
                     # Generate image - with or without face
                     if face_path and face_path.exists():
                         result = generator.generate_thumbnail_with_face(
-                            video_title=request.prompt,  # Use prompt as "title" for face generation
+                            video_title=request.prompt,
                             face_image_path=str(face_path),
                             face_mode=request.face_mode,
                             face_style=request.face_style,
@@ -158,6 +174,8 @@ async def generate_images(
                                 file_metadata={
                                     "prompt": request.prompt,
                                     "resolution": request.resolution,
+                                    "provider": provider,
+                                    "model": generator.get_provider_info().get('model'),
                                     "width": result.get('width'),
                                     "height": result.get('height'),
                                     "include_face": request.include_face,
@@ -208,6 +226,17 @@ async def generate_images(
             success=False,
             error=str(e)
         )
+
+
+@router.get("/provider")
+async def get_image_provider():
+    """Get the currently configured image generation provider."""
+    provider = get_current_provider()
+    return {
+        "provider": provider,
+        "available": ImageGeneratorFactory.is_provider_available(provider),
+        "options": ["gemini", "seedream"]
+    }
 
 
 @router.get("/list")
