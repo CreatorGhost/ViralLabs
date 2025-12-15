@@ -95,23 +95,6 @@ export const generateThumbnails = async (
 };
 
 // ============================================
-// FULL WORKFLOW
-// ============================================
-
-export const runFullWorkflow = async (
-  request: FullWorkflowRequest,
-  sessionId: string = 'default'
-): Promise<FullWorkflowResponse> => {
-  const response = await authFetch(`${API_BASE}/generate/full-workflow?session_id=${sessionId}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request),
-  });
-  if (!response.ok) throw new Error('Full workflow failed');
-  return response.json();
-};
-
-// ============================================
 // FACE UPLOAD
 // ============================================
 

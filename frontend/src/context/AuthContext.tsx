@@ -117,9 +117,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   // Logout handler
-  const logout = async (): Promise<void> => {
+  const logout = useCallback(async (): Promise<void> => {
     setIsLoading(true);
-    
+
     try {
       await apiLogout();
     } finally {
@@ -128,17 +128,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setRefreshToken(null);
       setIsLoading(false);
     }
-  };
+  }, []);
 
   // Refresh auth (for manual refresh or after token update)
-  const refreshAuth = async (): Promise<User | null> => {
+  const refreshAuth = useCallback(async (): Promise<User | null> => {
     try {
       const result = await refreshAccessToken();
-      
+
       if (result.success && result.tokens) {
         setAccessToken(result.tokens.access_token);
         setRefreshToken(result.tokens.refresh_token);
-        
+
         // Also refresh user data
         const currentUser = await getCurrentUser();
         if (currentUser) {
@@ -147,7 +147,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
         return null;
       }
-      
+
       // Refresh failed - logout
       await logout();
       return null;
@@ -155,7 +155,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       await logout();
       return null;
     }
-  };
+  }, [logout]);
 
   // Update user data (for external updates like profile changes)
   const updateUser = useCallback((updatedUser: User) => {
