@@ -6,13 +6,15 @@ Single Responsibility: Only handles script generation/regeneration routes.
 import os
 import sys
 from pathlib import Path
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.script_generator import generate_youtube_script, regenerate_script_only
 from backend.core.session import session_manager
+from backend.core.dependencies import get_premium_user
+from backend.models.db_models import User
 from backend.models.schemas import (
     ScriptGenerateRequest,
     ScriptRegenerateRequest,
@@ -24,8 +26,12 @@ regenerate_router = APIRouter(prefix="/regenerate", tags=["Script"])
 
 
 @router.post("/script", response_model=ScriptResponse)
-async def generate_script(request: ScriptGenerateRequest, session_id: str = "default"):
-    """Generate a YouTube script from a topic."""
+async def generate_script(
+    request: ScriptGenerateRequest,
+    session_id: str = "default",
+    current_user: User = Depends(get_premium_user),
+):
+    """Generate a YouTube script from a topic. Requires premium subscription."""
     
     if not os.getenv("OPENAI_API_KEY"):
         raise HTTPException(status_code=400, detail="OPENAI_API_KEY not set")
@@ -70,8 +76,12 @@ async def generate_script(request: ScriptGenerateRequest, session_id: str = "def
 
 
 @regenerate_router.post("/script", response_model=ScriptResponse)
-async def regenerate_script(request: ScriptRegenerateRequest, session_id: str = "default"):
-    """Regenerate script using existing transcripts."""
+async def regenerate_script(
+    request: ScriptRegenerateRequest,
+    session_id: str = "default",
+    current_user: User = Depends(get_premium_user),
+):
+    """Regenerate script using existing transcripts. Requires premium subscription."""
     
     if not os.getenv("OPENAI_API_KEY"):
         raise HTTPException(status_code=400, detail="OPENAI_API_KEY not set")
@@ -109,9 +119,10 @@ async def regenerate_script(request: ScriptRegenerateRequest, session_id: str = 
 async def regenerate_script_from_session(
     model: str = "gpt-5.1",
     temperature: float = 0.7,
-    session_id: str = "default"
+    session_id: str = "default",
+    current_user: User = Depends(get_premium_user),
 ):
-    """Regenerate script using session's stored transcripts."""
+    """Regenerate script using session's stored transcripts. Requires premium subscription."""
     
     session = session_manager.get_or_create(session_id)
     research_data = session.get("research_data")

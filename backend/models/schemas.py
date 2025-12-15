@@ -6,7 +6,7 @@ Single Responsibility: Only defines data shapes.
 from datetime import datetime
 from typing import Optional, List
 from uuid import UUID
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, field_validator
 
 
 # ===== Authentication Models =====
@@ -43,6 +43,7 @@ class UserResponse(BaseModel):
     email: str
     full_name: str
     is_premium: bool
+    credits: int = 0
     premium_expires_at: Optional[datetime] = None
     created_at: datetime
     last_login: Optional[datetime] = None
@@ -104,24 +105,36 @@ class ThumbnailGenerateRequest(BaseModel):
     """Request model for thumbnail generation."""
     topic: str = Field(..., min_length=3, description="Video topic/title")
     num_thumbnails: int = Field(default=3, ge=1, le=5, description="Number of thumbnails")
-    resolution: str = Field(default="2K", description="Resolution (1K, 2K, 4K)")
+    resolution: str = Field(default="1K", description="Resolution (1K only for cost savings)")
     use_reference_images: bool = Field(default=False, description="Use reference images from YouTube")
     youtube_video_ids: Optional[List[str]] = Field(default=None, description="YouTube video IDs to download thumbnails as references")
     include_face: bool = Field(default=False, description="Include uploaded face")
     face_mode: str = Field(default="auto", description="Face mode: auto, center, left, right")
     face_style: str = Field(default="realistic", description="Face style: realistic, professional, cartoon")
 
+    @field_validator('resolution')
+    @classmethod
+    def force_1k_resolution(cls, v: str) -> str:
+        """Force resolution to 1K regardless of input for cost savings."""
+        return "1K"
+
 
 class ThumbnailRegenerateRequest(BaseModel):
     """Request model for thumbnail regeneration."""
     topic: str
     num_thumbnails: int = Field(default=3, ge=1, le=5)
-    resolution: str = Field(default="2K")
+    resolution: str = Field(default="1K")
     use_reference_images: bool = Field(default=False)
     youtube_video_ids: Optional[List[str]] = Field(default=None)
     include_face: bool = Field(default=False)
     face_mode: str = Field(default="auto")
     face_style: str = Field(default="realistic")
+
+    @field_validator('resolution')
+    @classmethod
+    def force_1k_resolution(cls, v: str) -> str:
+        """Force resolution to 1K regardless of input for cost savings."""
+        return "1K"
 
 
 class FullWorkflowRequest(BaseModel):
@@ -139,11 +152,17 @@ class FullWorkflowRequest(BaseModel):
     # Thumbnail settings
     enable_thumbnails: bool = Field(default=True)
     num_thumbnails: int = Field(default=3, ge=1, le=5)
-    resolution: str = Field(default="2K")
+    resolution: str = Field(default="1K")
     use_reference_images: bool = Field(default=False)
     include_face: bool = Field(default=False)
     face_mode: str = Field(default="auto")
     face_style: str = Field(default="realistic")
+
+    @field_validator('resolution')
+    @classmethod
+    def force_1k_resolution(cls, v: str) -> str:
+        """Force resolution to 1K regardless of input for cost savings."""
+        return "1K"
 
 
 # ===== Video Search Models =====

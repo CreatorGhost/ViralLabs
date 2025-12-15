@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from backend.core.database import get_db
-from backend.core.dependencies import get_current_user
+from backend.core.dependencies import get_current_user, get_premium_user
 from backend.models.db_models import User, MediaFile
 from backend.services.thumbnail_service import ThumbnailService
 from backend.services.storage_service import storage_service
@@ -39,11 +39,18 @@ _face_temp_dir = tempfile.mkdtemp(prefix="faces_")
 @router.post("/generate/thumbnails", response_model=ThumbnailResponse)
 async def generate_thumbnails(
     request: ThumbnailGenerateRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_premium_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Generate thumbnails for a video topic."""
-    
+
+    # Deduct 1 credit per API call (regardless of thumbnail count)
+    current_user.credits -= 1
+    # Keep is_premium in sync with credits for backward compatibility
+    current_user.is_premium = current_user.credits > 0
+    await db.flush()  # Persist credit deduction before generation
+    print(f"💳 Deducted 1 credit. User {current_user.email} now has {current_user.credits} credits remaining")
+
     # Check API key based on configured provider
     provider = get_current_provider()
     if provider == "gemini":
@@ -134,7 +141,7 @@ async def generate_thumbnails(
 @router.post("/regenerate/thumbnails", response_model=ThumbnailResponse)
 async def regenerate_thumbnails(
     request: ThumbnailRegenerateRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_premium_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Regenerate thumbnails with new settings."""

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import type { User, AuthContextType, AuthResponse } from '../types/auth';
+
 import {
   login as apiLogin,
   signup as apiSignup,
@@ -10,10 +11,6 @@ import {
   clearTokens,
   refreshAccessToken,
 } from '../api/auth';
-
-// ============================================
-// CONTEXT
-// ============================================
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -120,7 +117,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   // Logout handler
-  const logout = useCallback(async (): Promise<void> => {
+  const logout = async (): Promise<void> => {
     setIsLoading(true);
     
     try {
@@ -131,10 +128,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setRefreshToken(null);
       setIsLoading(false);
     }
-  }, []);
+  };
 
   // Refresh auth (for manual refresh or after token update)
-  const refreshAuth = useCallback(async (): Promise<boolean> => {
+  const refreshAuth = async (): Promise<User | null> => {
     try {
       const result = await refreshAccessToken();
       
@@ -146,19 +143,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const currentUser = await getCurrentUser();
         if (currentUser) {
           setUser(currentUser);
+          return currentUser;
         }
-        
-        return true;
+        return null;
       }
       
       // Refresh failed - logout
       await logout();
-      return false;
+      return null;
     } catch {
       await logout();
-      return false;
+      return null;
     }
-  }, [logout]);
+  };
 
   // Update user data (for external updates like profile changes)
   const updateUser = useCallback((updatedUser: User) => {
@@ -230,6 +227,89 @@ export function ProtectedRoute({ children, fallback }: ProtectedRouteProps) {
   }
 
   return <>{children}</>;
+}
+
+// ============================================
+// PREMIUM ROUTE COMPONENT
+// ============================================
+
+interface PremiumRouteProps {
+  children: ReactNode;
+  fallback?: ReactNode;
+}
+
+/**
+ * Route guard that requires both authentication AND premium subscription.
+ * If user is not premium, shows the fallback (typically a redirect to pricing page).
+ */
+export function PremiumRoute({ children, fallback }: PremiumRouteProps) {
+  const { isAuthenticated, isLoading, user } = useAuth();
+
+  if (isLoading) {
+    // Show loading spinner while checking auth
+    return (
+      <div className="min-h-screen bg-[#0B0C10] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
+          <p className="text-white/50 text-sm">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    // Not logged in - return fallback or null
+    return fallback ? <>{fallback}</> : null;
+  }
+
+  if (!user?.credits || user.credits <= 0) {
+    // Logged in but no credits - show fallback (pricing page redirect)
+    return fallback ? <>{fallback}</> : null;
+  }
+
+  return <>{children}</>;
+}
+
+/**
+ * Hook to check if the current user has premium access (credits > 0).
+ * Returns { isPremium, credits, hasCredits, isLoading, isAuthenticated } for use in components.
+ */
+export function usePremiumStatus() {
+  const { user, isLoading, isAuthenticated } = useAuth();
+
+  const credits = user?.credits ?? 0;
+  const hasCredits = credits > 0;
+
+  return {
+    isPremium: isAuthenticated && hasCredits,
+    credits,
+    hasCredits,
+    isLoading,
+    isAuthenticated,
+  };
+}
+
+/**
+ * Hook to get the current user's credit balance and related utilities.
+ */
+export function useCredits() {
+  const { user, isLoading, isAuthenticated, refreshAuth } = useAuth();
+
+  const credits = user?.credits ?? 0;
+  const hasCredits = credits > 0;
+
+  const refreshCredits = async () => {
+    await refreshAuth();
+  };
+
+  return {
+    user,
+    credits,
+    hasCredits,
+    isLoading,
+    isAuthenticated,
+    refreshCredits,
+  };
 }
 
 export default AuthContext;

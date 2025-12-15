@@ -30,6 +30,7 @@ from backend.routers import (
     search_router,
     audio_router,
     image_router,
+    payment_router,
 )
 from backend.routers.script import regenerate_router
 
@@ -91,6 +92,7 @@ app.include_router(face_router)
 app.include_router(search_router)
 app.include_router(audio_router)
 app.include_router(image_router)
+app.include_router(payment_router)
 
 
 # ===== Frontend Serving (Production) =====
@@ -109,7 +111,7 @@ async def serve_frontend(full_path: str):
     # Skip API routes - these are handled by routers
     api_prefixes = (
         "auth", "generate", "regenerate", "upload", "uploads", "face",
-        "session", "health", "docs", "openapi", "redoc", "search", "audio", "image"
+        "session", "health", "docs", "openapi", "redoc", "search", "audio", "image", "payment"
     )
     # Special handling for thumbnail routes (but not /thumbnails static files)
     if full_path.startswith("thumbnail/") or full_path.startswith(api_prefixes):

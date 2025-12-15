@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Optional, List
 
 from sqlalchemy import (
-    String, Boolean, Integer, Text, DateTime, ForeignKey, Index, ARRAY
+    String, Boolean, Integer, Text, DateTime, ForeignKey, Index, ARRAY, Numeric
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -30,6 +30,7 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     is_premium: Mapped[bool] = mapped_column(Boolean, default=False)
+    credits: Mapped[int] = mapped_column(Integer, default=0)
     premium_expires_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), 
         nullable=True
@@ -233,5 +234,65 @@ class Generation(Base):
         Index("idx_generations_user", "user_id"),
         Index("idx_generations_type", "generation_type"),
         Index("idx_generations_created", "created_at"),
+    )
+
+
+class PaymentRequest(Base):
+    """
+    Manual payment requests for UPI-based payments.
+    Users submit a request after making UPI payment, admin approves to activate premium.
+    """
+    __tablename__ = "payment_requests"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False
+    )
+    amount: Mapped[float] = mapped_column(
+        Numeric(10, 2),
+        nullable=False,
+        default=50.00
+    )
+    upi_transaction_id: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True
+    )
+    screenshot_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(20),
+        default="pending",
+        nullable=False
+    )  # pending, approved, rejected
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now()
+    )
+    processed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+    processed_by: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True
+    )
+    notes: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True
+    )
+
+    # Relationships
+    user: Mapped["User"] = relationship(backref="payment_requests")
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_payment_requests_user", "user_id"),
+        Index("idx_payment_requests_status", "status"),
+        Index("idx_payment_requests_created", "created_at"),
     )
 

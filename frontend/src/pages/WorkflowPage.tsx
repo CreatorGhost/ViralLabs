@@ -24,6 +24,7 @@ import {
   Loader2,
   Play,
 } from 'lucide-react';
+import { useCredits } from '../context';
 import { useStreamingWorkflow } from '../hooks/useStreamingWorkflow';
 import { searchVideos } from '../api/client';
 import { getSessionId, API_BASE } from '../config';
@@ -144,7 +145,6 @@ export default function WorkflowPage({ onGenerateAudio, includeFace = false }: W
     max_workers: 5,
     enable_thumbnails: true,
     num_thumbnails: 3,
-    resolution: '1K',
     use_reference_images: true,  // Use YouTube thumbnails as style references
     include_face: false,
     face_mode: 'auto',
@@ -157,6 +157,8 @@ export default function WorkflowPage({ onGenerateAudio, includeFace = false }: W
   // Thumbnail gallery state
   const [selectedThumbnail, setSelectedThumbnail] = useState<number | null>(null);
   const [zoomedThumbnail, setZoomedThumbnail] = useState<{ url: string; index: number } | null>(null);
+
+  const { user, credits, hasCredits, refreshCredits } = useCredits();
 
   // Streaming workflow hook
   const {
@@ -172,6 +174,12 @@ export default function WorkflowPage({ onGenerateAudio, includeFace = false }: W
     videosAnalyzed,
     resetState,
   } = useStreamingWorkflow();
+
+  useEffect(() => {
+    if (isComplete) {
+      refreshCredits();
+    }
+  }, [isComplete]);
 
   // Load saved results on mount
   useEffect(() => {
@@ -282,7 +290,6 @@ export default function WorkflowPage({ onGenerateAudio, includeFace = false }: W
         temperature: studioSettings.temperature,
         enable_thumbnails: studioSettings.enable_thumbnails,
         num_thumbnails: studioSettings.num_thumbnails,
-        resolution: studioSettings.resolution,
         // Use YouTube thumbnails as style references
         use_reference_images: studioSettings.use_reference_images,
         // Face inclusion is controlled globally from Dashboard
@@ -370,6 +377,9 @@ export default function WorkflowPage({ onGenerateAudio, includeFace = false }: W
               <p className="text-sm text-white/40">
                 Create viral scripts and thumbnails from trending content
               </p>
+              <div className="flex items-center justify-center mt-2">
+                <span className="text-sm text-white/60">Credits: {user?.credits ?? 0}</span>
+              </div>
             </div>
 
             {/* Mode Selector - Clean Toggle */}
@@ -901,7 +911,7 @@ export default function WorkflowPage({ onGenerateAudio, includeFace = false }: W
                       className="aspect-video rounded-md overflow-hidden bg-black/20"
                     >
                       <img 
-                        src={`${API_BASE}${thumb.url}`} 
+                        src={thumb.url.startsWith('http') ? thumb.url : `${API_BASE}${thumb.url}`}
                         alt={`Thumbnail ${i + 1}`}
                         className="w-full h-full object-cover"
                       />
@@ -962,7 +972,7 @@ export default function WorkflowPage({ onGenerateAudio, includeFace = false }: W
                       {/* Image */}
                       <div className="p-4">
                         <img 
-                          src={`${API_BASE}${zoomedThumbnail.url}`} 
+                          src={zoomedThumbnail.url.startsWith('http') ? zoomedThumbnail.url : `${API_BASE}${zoomedThumbnail.url}`}
                           alt={`Thumbnail ${zoomedThumbnail.index + 1}`}
                           className="w-full h-auto rounded"
                         />
@@ -972,7 +982,7 @@ export default function WorkflowPage({ onGenerateAudio, includeFace = false }: W
                       <div className="flex items-center justify-between px-5 py-4 border-t border-white/[0.06]">
                         <p className="text-xs text-white/30">Click outside to close</p>
                         <a
-                          href={`${API_BASE}${zoomedThumbnail.url}`}
+                          href={zoomedThumbnail.url.startsWith('http') ? zoomedThumbnail.url : `${API_BASE}${zoomedThumbnail.url}`}
                           download={`thumbnail_${zoomedThumbnail.index + 1}.png`}
                           className="flex items-center gap-2 px-4 py-2 rounded-md bg-white text-black text-sm font-medium hover:bg-white/90 transition-colors"
                         >
@@ -1078,7 +1088,7 @@ export default function WorkflowPage({ onGenerateAudio, includeFace = false }: W
                           : 'border-white/[0.06] hover:border-white/15'
                       }`}>
                         <img 
-                          src={`${API_BASE}${thumb.url}`} 
+                          src={thumb.url.startsWith('http') ? thumb.url : `${API_BASE}${thumb.url}`}
                           alt={`Thumbnail ${i + 1}`}
                           className="w-full h-full object-cover"
                         />
@@ -1086,6 +1096,9 @@ export default function WorkflowPage({ onGenerateAudio, includeFace = false }: W
                         {/* Number badge */}
                         <div className="absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-medium text-white/70 bg-black/60">
                           #{i + 1}
+                          {thumb.tokens && (
+                            <span className="ml-2">{thumb.tokens} tokens</span>
+                          )}
                         </div>
                         
                         {/* Hover Actions */}
@@ -1100,7 +1113,7 @@ export default function WorkflowPage({ onGenerateAudio, includeFace = false }: W
                             <Maximize2 className="w-4 h-4" />
                           </button>
                           <a
-                            href={`${API_BASE}${thumb.url}`}
+                            href={thumb.url.startsWith('http') ? thumb.url : `${API_BASE}${thumb.url}`}
                             download={`thumbnail_${i + 1}.png`}
                             onClick={(e) => e.stopPropagation()}
                             className="w-9 h-9 rounded-md bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"

@@ -19,7 +19,7 @@ class ThumbnailGenerator:
         model: str = "gemini-3-pro-image-preview",
         output_dir: str = "generated_thumbnails",
         aspect_ratio: str = "16:9",
-        resolution: str = "2K"
+        resolution: str = "1K"
     ):
         """
         Initialize the thumbnail generator.
@@ -148,6 +148,10 @@ class ThumbnailGenerator:
                     'filepath': None
                 }
             
+            prompt_tokens = getattr(response.usage_metadata, 'prompt_token_count', 0)
+            candidates_tokens = getattr(response.usage_metadata, 'candidates_token_count', 0)
+            tokens = prompt_tokens + candidates_tokens
+
             return {
                 'success': True,
                 'filepath': str(output_filepath),
@@ -156,7 +160,8 @@ class ThumbnailGenerator:
                 'aspect_ratio': aspect_ratio_to_use,
                 'resolution': resolution_to_use if self.model == "gemini-3-pro-image-preview" else None,
                 'model': self.model,
-                'prompt': prompt
+                'prompt': prompt,
+                'tokens': tokens,
             }
             
         except Exception as e:
@@ -305,6 +310,10 @@ Now create an ORIGINAL thumbnail for my video that captures the same level of en
                     'filepath': None
                 }
             
+            prompt_tokens = getattr(response.usage_metadata, 'prompt_token_count', 0)
+            candidates_tokens = getattr(response.usage_metadata, 'candidates_token_count', 0)
+            tokens = prompt_tokens + candidates_tokens
+
             return {
                 'success': True,
                 'filepath': str(output_filepath),
@@ -314,7 +323,8 @@ Now create an ORIGINAL thumbnail for my video that captures the same level of en
                 'resolution': resolution_to_use if self.model == "gemini-3-pro-image-preview" else None,
                 'model': self.model,
                 'references_used': len(reference_images),
-                'video_title': video_title
+                'video_title': video_title,
+                'tokens': tokens,
             }
             
         except Exception as e:
@@ -504,6 +514,10 @@ Create a thumbnail that combines the provided face with compelling visuals for m
                     'filepath': None
                 }
             
+            prompt_tokens = getattr(response.usage_metadata, 'prompt_token_count', 0)
+            candidates_tokens = getattr(response.usage_metadata, 'candidates_token_count', 0)
+            tokens = prompt_tokens + candidates_tokens
+
             return {
                 'success': True,
                 'filepath': str(output_filepath),
@@ -514,7 +528,8 @@ Create a thumbnail that combines the provided face with compelling visuals for m
                 'model': self.model,
                 'face_mode': face_mode,
                 'face_style': face_style,
-                'video_title': video_title
+                'video_title': video_title,
+                'tokens': tokens,
             }
             
         except Exception as e:

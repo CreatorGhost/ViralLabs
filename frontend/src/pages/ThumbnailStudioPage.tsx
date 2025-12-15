@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  X, 
-  Download, 
+import { useNavigate } from 'react-router-dom';
+import {
+  X,
+  Download,
   Maximize2,
   Loader2,
   Wand2,
@@ -12,9 +13,11 @@ import {
   Clock,
   Sparkles,
   RefreshCw,
+  Coins,
 } from 'lucide-react';
 import { generateThumbnails, listThumbnails, getThumbnailUrl } from '../api/client';
 import { getSessionId } from '../config';
+import { useCredits } from '../context';
 
 interface ThumbnailItem {
   id?: string;
@@ -31,11 +34,12 @@ interface ThumbnailStudioPageProps {
 
 export default function ThumbnailStudioPage({ includeFace = false }: ThumbnailStudioPageProps) {
   const sessionId = getSessionId();
-  
+  const navigate = useNavigate();
+  const { user, credits, hasCredits, refreshCredits } = useCredits();
+
   // Generation state
   const [prompt, setPrompt] = useState('');
   const [numThumbnails, setNumThumbnails] = useState(3);
-  const [resolution, setResolution] = useState<'1K' | '2K' | '4K'>('1K');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   
@@ -69,27 +73,37 @@ export default function ThumbnailStudioPage({ includeFace = false }: ThumbnailSt
   // Generate thumbnails
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
-    
+    if (!hasCredits) {
+      setGenerationError('No credits remaining. Please purchase more credits.');
+      return;
+    }
+
     setIsGenerating(true);
     setGenerationError(null);
-    
+
     try {
       const response = await generateThumbnails({
         topic: prompt.trim(),
         num_thumbnails: numThumbnails,
-        resolution,
         include_face: includeFace,
       }, sessionId);
-      
+
       if (response.success) {
         // Reload thumbnails to show new ones
         await loadThumbnails();
+        // Refresh credits after successful generation
+        await refreshCredits();
         setPrompt('');
       } else {
         setGenerationError(response.error || 'Generation failed');
       }
-    } catch (e) {
-      setGenerationError('Failed to generate thumbnails. Please try again.');
+    } catch (e: unknown) {
+      // Check if it's a 402 Payment Required error
+      if (e instanceof Error && e.message.includes('402')) {
+        setGenerationError('No credits remaining. Please purchase more credits.');
+      } else {
+        setGenerationError('Failed to generate thumbnails. Please try again.');
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -225,7 +239,7 @@ export default function ThumbnailStudioPage({ includeFace = false }: ThumbnailSt
               </div>
 
               {/* Options Grid */}
-              <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="grid grid-cols-1 gap-3 mb-4">
                 {/* Number of Thumbnails */}
                 <div>
                   <label className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2 block">
@@ -247,34 +261,39 @@ export default function ThumbnailStudioPage({ includeFace = false }: ThumbnailSt
                     ))}
                   </div>
                 </div>
-
-                {/* Resolution */}
-                <div>
-                  <label className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2 block">
-                    Resolution
-                  </label>
-                  <div className="flex gap-1">
-                    {(['1K', '2K', '4K'] as const).map((res) => (
-                      <button
-                        key={res}
-                        onClick={() => setResolution(res)}
-                        className={`flex-1 py-2 rounded-md text-xs font-medium transition-all ${
-                          resolution === res
-                            ? 'bg-white/10 text-white border border-white/20'
-                            : 'bg-white/[0.03] text-white/50 border border-white/[0.06] hover:border-white/10'
-                        }`}
-                      >
-                        {res}
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </div>
+
+              {/* Credits Display */}
+              <div className={`flex items-center justify-between p-3 rounded-lg mb-4 ${
+                hasCredits
+                  ? 'bg-white/[0.02] border border-white/[0.06]'
+                  : 'bg-red-500/10 border border-red-500/20'
+              }`}>
+                <div className="flex items-center gap-2">
+                  <Coins className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs text-white/60">Available Credits</span>
+                </div>
+                <span className={`text-sm font-medium ${hasCredits ? 'text-white' : 'text-red-400'}`}>
+                  {user?.credits ?? 0}
+                </span>
+              </div>
+
+              {!hasCredits && (
+                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 mb-4">
+                  <p className="text-xs text-red-400 mb-2">You need credits to generate thumbnails.</p>
+                  <button
+                    onClick={() => navigate('/pricing')}
+                    className="text-xs text-violet-400 hover:text-violet-300 font-medium"
+                  >
+                    Buy Credits →
+                  </button>
+                </div>
+              )}
 
               {/* Face Status Indicator */}
               <div className={`flex items-center gap-2 p-3 rounded-lg mb-4 ${
-                includeFace 
-                  ? 'bg-emerald-500/10 border border-emerald-500/20' 
+                includeFace
+                  ? 'bg-emerald-500/10 border border-emerald-500/20'
                   : 'bg-white/[0.02] border border-white/[0.06]'
               }`}>
                 <div className={`w-2 h-2 rounded-full ${includeFace ? 'bg-emerald-400' : 'bg-white/20'}`} />
@@ -294,9 +313,9 @@ export default function ThumbnailStudioPage({ includeFace = false }: ThumbnailSt
               {/* Generate Button */}
               <button
                 onClick={handleGenerate}
-                disabled={!prompt.trim() || isGenerating}
+                disabled={!prompt.trim() || isGenerating || !hasCredits}
                 className={`w-full flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-medium transition-all ${
-                  prompt.trim() && !isGenerating
+                  prompt.trim() && !isGenerating && hasCredits
                     ? 'bg-white text-black hover:bg-white/90'
                     : 'bg-white/[0.06] text-white/30 cursor-not-allowed'
                 }`}
@@ -316,7 +335,7 @@ export default function ThumbnailStudioPage({ includeFace = false }: ThumbnailSt
 
               {/* Generation Info */}
               <p className="text-[10px] text-white/30 text-center mt-3">
-                ~30-60 seconds per thumbnail
+                ~30-60 seconds per thumbnail · Uses 1 credit
               </p>
             </div>
           </motion.div>

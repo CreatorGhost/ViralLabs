@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  X, 
-  Download, 
+import { useNavigate } from 'react-router-dom';
+import {
+  X,
+  Download,
   Maximize2,
   Loader2,
   Wand2,
@@ -12,8 +13,10 @@ import {
   RefreshCw,
   Trash2,
   User,
+  Coins,
 } from 'lucide-react';
 import { generateImages, listImages, deleteImage } from '../api/client';
+import { useCredits } from '../context';
 
 interface ImageItem {
   id: string;
@@ -34,10 +37,13 @@ interface ImageStudioPageProps {
 }
 
 export default function ImageStudioPage({ includeFace = false }: ImageStudioPageProps) {
+  const navigate = useNavigate();
+  const { user, credits, hasCredits, refreshCredits } = useCredits();
+
   // Generation state
   const [prompt, setPrompt] = useState('');
   const [numImages, setNumImages] = useState(1);
-  const [resolution, setResolution] = useState<'1K' | '2K' | '4K'>('2K');
+  const resolution = '1K' as const; // Fixed to 1K resolution
   const [useFace, setUseFace] = useState(false);
   const [faceMode, setFaceMode] = useState<'auto' | 'center' | 'left' | 'right'>('auto');
   const [faceStyle, setFaceStyle] = useState<'realistic' | 'professional' | 'cartoon'>('realistic');
@@ -75,10 +81,14 @@ export default function ImageStudioPage({ includeFace = false }: ImageStudioPage
   // Generate images
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
-    
+    if (!hasCredits) {
+      setGenerationError('No credits remaining. Please purchase more credits.');
+      return;
+    }
+
     setIsGenerating(true);
     setGenerationError(null);
-    
+
     try {
       const response = await generateImages({
         prompt: prompt.trim(),
@@ -88,16 +98,23 @@ export default function ImageStudioPage({ includeFace = false }: ImageStudioPage
         face_mode: faceMode,
         face_style: faceStyle,
       });
-      
+
       if (response.success) {
         // Reload images to show new ones
         await loadImages();
+        // Refresh credits after successful generation
+        await refreshCredits();
         setPrompt('');
       } else {
         setGenerationError(response.error || 'Generation failed');
       }
-    } catch (e) {
-      setGenerationError('Failed to generate images. Please try again.');
+    } catch (e: unknown) {
+      // Check if it's a 402 Payment Required error
+      if (e instanceof Error && e.message.includes('402')) {
+        setGenerationError('No credits remaining. Please purchase more credits.');
+      } else {
+        setGenerationError('Failed to generate images. Please try again.');
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -254,52 +271,55 @@ export default function ImageStudioPage({ includeFace = false }: ImageStudioPage
                 />
               </div>
 
-              {/* Options Grid */}
-              <div className="grid grid-cols-2 gap-3 mb-4">
+              {/* Options */}
+              <div className="mb-4">
                 {/* Number of Images */}
-                <div>
-                  <label className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2 block">
-                    Count
-                  </label>
-                  <div className="flex gap-1">
-                    {[1, 2, 3].map((n) => (
-                      <button
-                        key={n}
-                        onClick={() => setNumImages(n)}
-                        className={`flex-1 py-2 rounded-md text-xs font-medium transition-all ${
-                          numImages === n
-                            ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30'
-                            : 'bg-white/[0.03] text-white/50 border border-white/[0.06] hover:border-white/10'
-                        }`}
-                      >
-                        {n}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Resolution */}
-                <div>
-                  <label className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2 block">
-                    Resolution
-                  </label>
-                  <div className="flex gap-1">
-                    {(['1K', '2K', '4K'] as const).map((res) => (
-                      <button
-                        key={res}
-                        onClick={() => setResolution(res)}
-                        className={`flex-1 py-2 rounded-md text-xs font-medium transition-all ${
-                          resolution === res
-                            ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30'
-                            : 'bg-white/[0.03] text-white/50 border border-white/[0.06] hover:border-white/10'
-                        }`}
-                      >
-                        {res}
-                      </button>
-                    ))}
-                  </div>
+                <label className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2 block">
+                  Number of Images
+                </label>
+                <div className="flex gap-1">
+                  {[1, 2, 3].map((n) => (
+                    <button
+                      key={n}
+                      onClick={() => setNumImages(n)}
+                      className={`flex-1 py-2 rounded-md text-xs font-medium transition-all ${
+                        numImages === n
+                          ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30'
+                          : 'bg-white/[0.03] text-white/50 border border-white/[0.06] hover:border-white/10'
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
                 </div>
               </div>
+
+              {/* Credits Display */}
+              <div className={`flex items-center justify-between p-3 rounded-lg mb-4 ${
+                hasCredits
+                  ? 'bg-white/[0.02] border border-white/[0.06]'
+                  : 'bg-red-500/10 border border-red-500/20'
+              }`}>
+                <div className="flex items-center gap-2">
+                  <Coins className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs text-white/60">Available Credits</span>
+                </div>
+                <span className={`text-sm font-medium ${hasCredits ? 'text-white' : 'text-red-400'}`}>
+                  {user?.credits ?? 0}
+                </span>
+              </div>
+
+              {!hasCredits && (
+                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 mb-4">
+                  <p className="text-xs text-red-400 mb-2">You need credits to generate images.</p>
+                  <button
+                    onClick={() => navigate('/pricing')}
+                    className="text-xs text-violet-400 hover:text-violet-300 font-medium"
+                  >
+                    Buy Credits →
+                  </button>
+                </div>
+              )}
 
               {/* Face Options */}
               {includeFace && (
@@ -374,9 +394,9 @@ export default function ImageStudioPage({ includeFace = false }: ImageStudioPage
               {/* Generate Button */}
               <button
                 onClick={handleGenerate}
-                disabled={!prompt.trim() || isGenerating}
+                disabled={!prompt.trim() || isGenerating || !hasCredits}
                 className={`w-full flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-medium transition-all ${
-                  prompt.trim() && !isGenerating
+                  prompt.trim() && !isGenerating && hasCredits
                     ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white hover:from-violet-500 hover:to-purple-500'
                     : 'bg-white/[0.06] text-white/30 cursor-not-allowed'
                 }`}
@@ -396,7 +416,7 @@ export default function ImageStudioPage({ includeFace = false }: ImageStudioPage
 
               {/* Generation Info */}
               <p className="text-[10px] text-white/30 text-center mt-3">
-                ~15-30 seconds per image
+                ~15-30 seconds per image · Uses 1 credit
               </p>
             </div>
           </motion.div>

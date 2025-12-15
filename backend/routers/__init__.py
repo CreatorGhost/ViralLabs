@@ -10,6 +10,7 @@ from .face import router as face_router
 from .search import router as search_router
 from .audio import router as audio_router
 from .image import router as image_router
+from .payment import router as payment_router
 
 __all__ = [
     "auth_router",
@@ -22,5 +23,6 @@ __all__ = [
     "search_router",
     "audio_router",
     "image_router",
+    "payment_router",
 ]
 

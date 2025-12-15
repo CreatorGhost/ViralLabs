@@ -41,6 +41,8 @@ class WorkflowStreamService:
         self,
         request: FullWorkflowRequest,
         session_id: str,
+        user: "User",
+        db: "AsyncSession",
         face_path: Optional[Path] = None
     ) -> AsyncGenerator[str, None]:
         """
@@ -49,6 +51,8 @@ class WorkflowStreamService:
         Args:
             request: Full workflow request parameters
             session_id: User session identifier
+            user: The current user object
+            db: The database session
             face_path: Optional path to face image (already downloaded if from R2)
             
         Yields:
@@ -57,6 +61,8 @@ class WorkflowStreamService:
         from openai import OpenAI
         from src.video_fetcher import VideoFetcher
         from src.transcript_scraper import TranscriptScraper
+        from backend.models.db_models import User
+        from sqlalchemy.ext.asyncio import AsyncSession
         
         current_step = SSEService.STEP_INITIALIZING
         
@@ -293,12 +299,14 @@ class WorkflowStreamService:
                 async for event in self.thumbnail_service.generate_parallel_stream(
                     topic=request.topic,
                     num_thumbnails=request.num_thumbnails,
-                    resolution=request.resolution,
+                    resolution=request.resolution or "1K",
                     face_path=effective_face_path,
                     face_mode=request.face_mode,
                     face_style=request.face_style,
                     use_reference_images=request.use_reference_images,
-                    youtube_video_ids=youtube_video_ids
+                    youtube_video_ids=youtube_video_ids,
+                    user_id=user.id,
+                    db=db
                 ):
                     if event:
                         yield event
@@ -307,9 +315,11 @@ class WorkflowStreamService:
                             event_data = json.loads(event.replace("data: ", "").strip())
                             if (event_data.get("type") == "thumbnail" and 
                                 event_data.get("data", {}).get("url")):
+                                data = event_data.get("data", {})
                                 thumbnail_urls.append({
-                                    "url": event_data["data"]["url"],
-                                    "filepath": event_data["data"].get("filepath")
+                                    "url": data.get("url"),
+                                    "filepath": data.get("filepath"),
+                                    "tokens": data.get("tokens"),
                                 })
                         except:
                             pass

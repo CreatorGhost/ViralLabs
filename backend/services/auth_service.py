@@ -117,10 +117,19 @@ class AuthService:
         # Enforce session limit - delete oldest if at max
         await self._enforce_session_limit(user.id)
 
+        # Delete any existing token with the same hash for this user
+        token_hash = hash_token(tokens.refresh_token)
+        await self.db.execute(
+            delete(RefreshToken).where(
+                RefreshToken.user_id == user.id,
+                RefreshToken.token_hash == token_hash
+            )
+        )
+
         # Store refresh token hash in database
         refresh_token_record = RefreshToken(
             user_id=user.id,
-            token_hash=hash_token(tokens.refresh_token),
+            token_hash=token_hash,
             device_info=device_info,
             ip_address=ip_address,
             expires_at=get_token_expiry("refresh"),

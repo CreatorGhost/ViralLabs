@@ -5,8 +5,10 @@ FastAPI dependencies for authentication and database access.
 from typing import Optional
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, status, Request
+from fastapi import Depends, HTTPException, status, Request, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+from backend.core.config import settings
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core.database import get_db
@@ -101,17 +103,18 @@ async def get_premium_user(
     user: User = Depends(get_current_user),
 ) -> User:
     """
-    Dependency that requires user to have premium subscription.
-    
+    Dependency that requires user to have credits > 0.
+    Used for features that require payment (e.g., thumbnail generation).
+
     Usage:
         @app.get("/premium-feature")
         async def premium_feature(user: User = Depends(get_premium_user)):
             return {"feature": "premium content"}
     """
-    if not user.is_premium:
+    if not user.credits or user.credits <= 0:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Premium subscription required",
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="No credits remaining. Please purchase more credits.",
         )
     return user
 
@@ -124,4 +127,23 @@ def get_client_info(request: Request) -> dict:
         "ip_address": request.client.host if request.client else None,
         "device_info": request.headers.get("User-Agent", "Unknown"),
     }
+
+
+async def verify_admin_key(
+    x_admin_key: str = Header(..., description="Admin secret key for protected endpoints"),
+) -> str:
+    """
+    Dependency that verifies admin authentication via header.
+
+    Usage:
+        @app.get("/admin/protected")
+        async def admin_route(admin: str = Depends(verify_admin_key)):
+            return {"status": "admin access granted"}
+    """
+    if x_admin_key != settings.admin_secret_key:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid admin key",
+        )
+    return x_admin_key
 

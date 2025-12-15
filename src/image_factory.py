@@ -76,7 +76,7 @@ class ImageGeneratorFactory:
     def create(
         provider: Optional[str] = None,
         output_dir: str = "generated_thumbnails",
-        resolution: str = "2K",
+        resolution: str = "1K",
         **kwargs
     ) -> "UnifiedImageGenerator":
         """
@@ -130,7 +130,7 @@ class UnifiedImageGenerator:
         self,
         provider: str = "gemini",
         output_dir: str = "generated_thumbnails",
-        resolution: str = "2K",
+        resolution: str = "1K",
         aspect_ratio: str = "16:9",
         **kwargs
     ):

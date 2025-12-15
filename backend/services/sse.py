@@ -65,19 +65,23 @@ class SSEService:
         return cls.format_event(cls.SCRIPT_CHUNK, cls.STEP_GENERATING, "", {"chunk": chunk})
     
     @classmethod
-    def thumbnail(cls, index: int, url: str, filepath: str, current: int, total: int) -> str:
+    def thumbnail(cls, index: int, url: str, filepath: str, current: int, total: int, tokens: Optional[int] = None) -> str:
         """Create a thumbnail completion event."""
+        data = {
+            "index": index,
+            "url": url,
+            "filepath": filepath,
+            "current": current,
+            "total": total
+        }
+        if tokens is not None:
+            data["tokens"] = tokens
+
         return cls.format_event(
             cls.THUMBNAIL,
             cls.STEP_THUMBNAILS,
             f"Thumbnail {index} ready",
-            {
-                "index": index,
-                "url": url,
-                "filepath": filepath,
-                "current": current,
-                "total": total
-            }
+            data
         )
     
     @classmethod

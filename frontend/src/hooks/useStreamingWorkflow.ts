@@ -108,6 +108,7 @@ export function useStreamingWorkflow(): UseStreamingWorkflowReturn {
             index: data.index || 0,
             url: data.url,
             filepath: data.filepath,
+            tokens: data.tokens,
           };
           setThumbnails((prev) => [...prev, newThumbnail]);
         }

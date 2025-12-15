@@ -162,8 +162,8 @@ Requirements:
         self,
         topic: str,
         index: int,
-        resolution: str,
         output_dir: str,
+        resolution: str = "1K",
         face_path: Optional[Path] = None,
         face_mode: str = "auto",
         face_style: str = "realistic",
@@ -288,8 +288,8 @@ Requirements:
         self,
         topic: str,
         index: int,
-        resolution: str,
         output_dir: str,
+        resolution: str = "1K",
         face_path: Optional[Path] = None,
         face_mode: str = "auto",
         face_style: str = "realistic",
@@ -321,9 +321,9 @@ Requirements:
         self,
         topic: str,
         index: int,
-        resolution: str,
         user_id: UUID,
         db: AsyncSession,
+        resolution: str = "1K",
         face_path: Optional[Path] = None,
         face_mode: str = "auto",
         face_style: str = "realistic",
@@ -411,6 +411,7 @@ Requirements:
                 "height": result.get('height'),
                 "model": result.get('model'),
                 "provider": self.provider,
+                "tokens": result.get("tokens"),
             }
         )
         db.add(media_file)
@@ -427,6 +428,7 @@ Requirements:
             'width': result.get('width'),
             'height': result.get('height'),
             'model': result.get('model'),
+            'tokens': result.get('tokens'),
         }
     
     def generate_batch(
@@ -524,7 +526,7 @@ Requirements:
         self,
         topic: str,
         num_thumbnails: int,
-        resolution: str,
+        resolution: str = "1K",
         face_path: Optional[Path] = None,
         face_mode: str = "auto",
         face_style: str = "realistic",
@@ -605,7 +607,8 @@ Requirements:
                     thumbnail_urls.append({
                         "url": url,
                         "filepath": result.get('filepath'),
-                        "original_index": result.get('index', 0)
+                        "original_index": result.get('index', 0),
+                        "tokens": result.get("tokens"),
                     })
                     
                     yield SSEService.thumbnail(
@@ -613,7 +616,8 @@ Requirements:
                         url=url,
                         filepath=result.get('filepath'),
                         current=completed,
-                        total=num_thumbnails
+                        total=num_thumbnails,
+                        tokens=result.get("tokens")
                     )
                 else:
                     yield SSEService.progress(

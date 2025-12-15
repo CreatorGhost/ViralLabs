@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, useAnimationControls, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Zap, Image, Wand2, Mic, Settings, User, Check, Upload, ChevronRight, LogOut, Crown } from 'lucide-react';
+import { Zap, Image, Wand2, Mic, Settings, User, Check, Upload, ChevronRight, LogOut, Crown, Coins } from 'lucide-react';
 import { useAuth } from '../hooks';
 
 export type TabId = 'workflow' | 'thumbnail' | 'image' | 'audio' | 'settings';
@@ -166,6 +166,14 @@ export default function CrystalDock({
           </ul>
         </div>
 
+        {/* Credits Badge - Always visible */}
+        <div className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-black/40 backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+          <Coins className="w-4 h-4 text-amber-400" />
+          <span className={`text-sm font-medium ${(user?.credits ?? 0) > 0 ? 'text-white' : 'text-red-400'}`}>
+            {user?.credits ?? 0}
+          </span>
+        </div>
+
         {/* Face Indicator - Separate pill */}
         <div className="relative" ref={popoverRef}>
           <button
@@ -225,7 +233,7 @@ export default function CrystalDock({
                           <p className="text-sm font-medium text-white truncate">
                             {user.full_name || 'User'}
                           </p>
-                          {user.is_premium && (
+                          {(user.credits ?? 0) > 0 && (
                             <Crown className="w-3.5 h-3.5 text-amber-400" />
                           )}
                         </div>
@@ -233,6 +241,16 @@ export default function CrystalDock({
                           {user.email}
                         </p>
                       </div>
+                    </div>
+                    {/* Credits Display */}
+                    <div className="mt-3 flex items-center justify-between p-2 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+                      <div className="flex items-center gap-2">
+                        <Coins className="w-4 h-4 text-amber-400" />
+                        <span className="text-xs text-white/60">Credits</span>
+                      </div>
+                      <span className={`text-sm font-medium ${(user.credits ?? 0) > 0 ? 'text-white' : 'text-red-400'}`}>
+                        {user.credits ?? 0}
+                      </span>
                     </div>
                   </div>
                 )}
@@ -340,6 +358,16 @@ export default function CrystalDock({
           </AnimatePresence>
         </div>
       </motion.nav>
+
+      {/* Mobile Credits Badge - Top right */}
+      <div
+        className="md:hidden fixed top-4 right-4 z-50 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-xl border border-white/10 shadow-lg"
+      >
+        <Coins className="w-3.5 h-3.5 text-amber-400" />
+        <span className={`text-xs font-medium ${(user?.credits ?? 0) > 0 ? 'text-white' : 'text-red-400'}`}>
+          {user?.credits ?? 0}
+        </span>
+      </div>
 
       {/* Mobile Dock */}
       <nav

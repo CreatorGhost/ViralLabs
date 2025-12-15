@@ -205,7 +205,7 @@ def concatenate_audio_files(audio_paths: List[Path], output_path: Path) -> bool:
                 # FFmpeg concat format: file 'path'
                 f.write(f"file '{path}'\n")
             concat_list_path = f.name
-        
+
         # Use FFmpeg to concatenate without re-encoding (fast & lossless)
         cmd = [
             'ffmpeg',
@@ -216,20 +216,20 @@ def concatenate_audio_files(audio_paths: List[Path], output_path: Path) -> bool:
             '-c', 'copy',  # Copy codec (no re-encoding)
             str(output_path)
         ]
-        
+
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True
         )
-        
+
         # Clean up the concat list file
         Path(concat_list_path).unlink(missing_ok=True)
-        
+
         if result.returncode != 0:
             print(f"FFmpeg error: {result.stderr}")
             return False
-        
+
         return True
     except FileNotFoundError:
         print("FFmpeg not found. Please install FFmpeg.")

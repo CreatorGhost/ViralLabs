@@ -1,26 +1,42 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { 
-  Sparkles, 
-  ArrowLeft, 
+import {
+  Sparkles,
+  ArrowLeft,
   Check,
   X,
   Zap,
   Crown,
   HelpCircle
 } from 'lucide-react';
+import { useAuth } from '../hooks';
+import PaymentModal from '../components/PaymentModal';
 
 export default function PricingPage() {
   const navigate = useNavigate();
+  const { isAuthenticated, user } = useAuth();
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+
+  // Handle upgrade button click
+  const handleUpgradeClick = () => {
+    if (!isAuthenticated) {
+      // Not logged in - redirect to signup first
+      navigate('/signup');
+      return;
+    }
+    // Show payment modal (users can always buy more credits)
+    setIsPaymentModalOpen(true);
+  };
+
+  const hasCredits = (user?.credits ?? 0) > 0;
 
   const features = [
-    { name: 'AI Script Generation', free: '3 per day', pro: 'Unlimited' },
-    { name: 'Thumbnail Generation', free: '2 per day', pro: 'Unlimited' },
-    { name: 'Image Generation', free: '2 per day', pro: 'Unlimited' },
-    { name: 'Audio Voiceover', free: false, pro: 'Unlimited' },
+    { name: 'AI Script Generation', free: '3 per day', pro: '10 per pack (free)' },
+    { name: 'Thumbnail Generation', free: false, pro: '10 per pack' },
+    { name: 'Image Generation', free: '2 per day', pro: '10 per pack' },
+    { name: 'Audio Voiceover', free: false, pro: 'Included' },
     { name: 'Face Integration', free: false, pro: true },
-    { name: 'HD Exports', free: false, pro: true },
     { name: 'YouTube Analysis', free: '5 videos', pro: 'Unlimited' },
     { name: 'One-Click Workflow', free: false, pro: true },
     { name: 'Priority Processing', free: false, pro: true },
@@ -30,28 +46,28 @@ export default function PricingPage() {
 
   const faqs = [
     {
-      question: 'How does the 14-day free trial work?',
-      answer: 'When you sign up, you get full access to all Pro features for 14 days completely free. No credit card required to start. You can cancel anytime during the trial.',
+      question: 'How do credits work?',
+      answer: 'Each credit pack gives you 10 credits for ₹50. Each thumbnail generation uses 1 credit (regardless of how many thumbnails you generate in one batch). Script generation is currently free and doesn\'t use credits.',
     },
     {
       question: 'What payment methods do you accept?',
-      answer: 'We accept UPI (PhonePe, GPay, Paytm), all major credit/debit cards, and net banking through our secure payment partner.',
+      answer: 'We accept UPI (PhonePe, GPay, Paytm). Simply transfer ₹50 to our UPI ID and submit your payment for verification.',
     },
     {
-      question: 'Can I cancel my subscription anytime?',
-      answer: 'Yes! You can cancel your subscription at any time from your account settings. Your access will continue until the end of your current billing period.',
+      question: 'Can I buy more credits anytime?',
+      answer: 'Yes! You can purchase additional credit packs at any time. Credits are stackable - new credits are added to your existing balance.',
     },
     {
       question: 'Is there a refund policy?',
-      answer: 'We have a no-refund policy for all subscription payments. This is why we offer a generous 14-day free trial - so you can fully evaluate our service before paying. You can cancel anytime to stop future charges.',
+      answer: 'Credits are non-refundable once purchased. Please make sure you understand the credit system before purchasing.',
     },
     {
-      question: 'What happens to my content if I cancel?',
-      answer: 'Your account and all generated content remain accessible even after cancellation. You can resubscribe anytime to regain Pro features.',
+      question: 'What happens when I run out of credits?',
+      answer: 'When your credits reach zero, you\'ll need to purchase more to continue generating thumbnails. Your account and all generated content remain accessible.',
     },
     {
-      question: 'Do you offer annual billing?',
-      answer: 'Currently we offer monthly billing at ₹2,499/month. Annual plans with additional discounts will be available soon.',
+      question: 'Do credits expire?',
+      answer: 'No, credits never expire. Use them whenever you need to generate thumbnails.',
     },
   ];
 
@@ -165,21 +181,24 @@ export default function PricingPage() {
             </div>
 
             <div className="mb-6">
-              <h2 className="text-xl font-semibold mb-1">Pro</h2>
+              <h2 className="text-xl font-semibold mb-1">Credits Pack</h2>
               <p className="text-white/50 text-sm">For serious content creators</p>
             </div>
 
             <div className="mb-6">
-              <span className="text-4xl font-bold">₹2,499</span>
-              <span className="text-white/50 ml-2">/ month</span>
-              <p className="text-sm text-violet-400 mt-1">14-day free trial included</p>
+              <span className="text-4xl font-bold">₹50</span>
+              <span className="text-white/50 ml-2">/ 10 credits</span>
+              <p className="text-sm text-violet-400 mt-1">10 script + 10 thumbnail generations</p>
+              {hasCredits && (
+                <p className="text-xs text-emerald-400 mt-1">You have {user?.credits} credits</p>
+              )}
             </div>
 
             <button
-              onClick={() => navigate('/signup')}
+              onClick={handleUpgradeClick}
               className="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-500 font-medium transition-colors mb-8"
             >
-              Start Free Trial
+              {hasCredits ? 'Buy More Credits' : 'Buy Credits'}
             </button>
 
             <div className="space-y-4">
@@ -312,14 +331,14 @@ export default function PricingPage() {
         >
           <h2 className="text-3xl font-bold mb-4">Ready to create viral content?</h2>
           <p className="text-white/60 mb-8">
-            Start your 14-day free trial today. No credit card required.
+            Get 10 credits for just ₹50. Generate stunning thumbnails instantly.
           </p>
           <div className="flex items-center justify-center gap-4">
             <button
-              onClick={() => navigate('/signup')}
+              onClick={handleUpgradeClick}
               className="px-8 py-3 rounded-xl bg-violet-600 hover:bg-violet-500 font-medium transition-colors"
             >
-              Start Free Trial
+              {hasCredits ? 'Buy More Credits' : 'Buy Credits'}
             </button>
             <Link
               to="/contact"
@@ -330,6 +349,15 @@ export default function PricingPage() {
           </div>
         </motion.div>
       </div>
+
+      {/* Payment Modal */}
+      <PaymentModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        onSuccess={() => {
+          // Optionally refresh auth state or show success message
+        }}
+      />
 
       {/* Footer */}
       <footer className="border-t border-white/5 py-8">

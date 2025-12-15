@@ -16,13 +16,13 @@ from typing import List, Optional
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from backend.core.config import THUMBNAILS_DIR
 from backend.core.database import get_db
-from backend.core.dependencies import get_current_user
+from backend.core.dependencies import get_current_user, get_premium_user
 from backend.models.db_models import User, MediaFile
 from backend.services.storage_service import storage_service
 from src.image_factory import ImageGeneratorFactory, get_current_provider
@@ -35,11 +35,17 @@ class ImageGenerateRequest(BaseModel):
     """Request model for simple image generation."""
     prompt: str = Field(..., description="The prompt for image generation")
     num_images: int = Field(default=1, ge=1, le=5, description="Number of images to generate (1-5)")
-    resolution: str = Field(default="2K", description="Resolution: 1K, 2K, or 4K")
+    resolution: str = Field(default="1K", description="Resolution: 1K (1280x720)")
     include_face: bool = Field(default=False, description="Include user's uploaded face")
     face_mode: str = Field(default="auto", description="Face placement: auto, center, left, right")
     face_style: str = Field(default="realistic", description="Face style: realistic, professional, cartoon")
     provider: Optional[str] = Field(default=None, description="Override provider: gemini or seedream")
+
+    @field_validator('resolution')
+    @classmethod
+    def force_1k_resolution(cls, v: str) -> str:
+        """Force all image generation to 1K resolution."""
+        return "1K"
 
 
 class GeneratedImage(BaseModel):
@@ -64,7 +70,7 @@ class ImageGenerateResponse(BaseModel):
 @router.post("/generate", response_model=ImageGenerateResponse)
 async def generate_images(
     request: ImageGenerateRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_premium_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -89,6 +95,12 @@ async def generate_images(
         if not os.getenv("ARK_API_KEY"):
             raise HTTPException(status_code=400, detail="ARK_API_KEY not set for Seedream")
     
+    # Deduct 1 credit per API call (regardless of num_images)
+    current_user.credits -= 1
+    current_user.is_premium = current_user.credits > 0
+    await db.flush()
+    print(f"💳 Deducted 1 credit for image generation. User {current_user.email} now has {current_user.credits} credits remaining")
+
     try:
         # Get user's face if requested
         face_path = None

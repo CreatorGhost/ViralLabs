@@ -254,7 +254,6 @@ export interface StudioModeSettings {
   // Thumbnail settings
   enable_thumbnails: boolean;
   num_thumbnails: number;
-  resolution: string;
   use_reference_images: boolean;
   include_face: boolean;
   face_mode: string;
@@ -282,7 +281,6 @@ export const DEFAULT_STUDIO_SETTINGS: StudioModeSettings = {
   max_workers: 5,
   enable_thumbnails: true,
   num_thumbnails: 3,
-  resolution: '1K',
   use_reference_images: true,  // Use YouTube thumbnails as style references
   include_face: false,
   face_mode: 'auto',
@@ -330,6 +328,7 @@ export interface ProgressData {
   index?: number;
   url?: string;
   filepath?: string;
+  tokens?: number;
   // For errors
   error?: string;
   step?: string;
@@ -345,6 +344,7 @@ export interface StreamingThumbnail {
   index: number;
   url: string;
   filepath?: string;
+  tokens?: number;
 }
 
 export interface SSEEvent {

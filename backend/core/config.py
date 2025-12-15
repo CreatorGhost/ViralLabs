@@ -46,6 +46,13 @@ class Settings(BaseSettings):
     r2_bucket_name: str = "virallab-media"
     r2_public_url: str = ""
     storage_mode: str = "local"  # "local" or "r2"
+
+    # Admin settings
+    admin_secret_key: str = "change-this-admin-secret-key"  # Change in production!
+
+    # Public URL for generating external links (screenshots, etc.)
+    # Set this to your public domain/IP in production
+    public_base_url: Optional[str] = None  # e.g., "https://yourdomain.com" or "http://35.226.2.144:8888"
     
     model_config = {
         "env_file": ".env",

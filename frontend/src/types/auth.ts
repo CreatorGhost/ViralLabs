@@ -7,6 +7,7 @@ export interface User {
   email: string;
   full_name: string;
   is_premium: boolean;
+  credits: number;
   premium_expires_at: string | null;
   created_at: string;
   last_login: string | null;
@@ -81,7 +82,7 @@ export interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<AuthResponse>;
   signup: (email: string, password: string, fullName: string) => Promise<AuthResponse>;
   logout: () => Promise<void>;
-  refreshAuth: () => Promise<boolean>;
+  refreshAuth: () => Promise<User | null>;
   updateUser: (user: User) => void;
 }
 

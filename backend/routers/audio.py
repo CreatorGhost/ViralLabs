@@ -24,7 +24,7 @@ from src.audio_genreator import (
 )
 from backend.core.config import AUDIO_DIR
 from backend.core.database import get_db
-from backend.core.dependencies import get_current_user
+from backend.core.dependencies import get_current_user, get_premium_user
 from backend.models.db_models import User, MediaFile
 from backend.models.schemas import (
     AudioGenerateRequest,
@@ -51,7 +51,7 @@ async def get_audio_options():
 @router.post("/generate", response_model=AudioResponse)
 async def generate_audio_endpoint(
     request: AudioGenerateRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_premium_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Generate audio from provided script text."""
