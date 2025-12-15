@@ -62,12 +62,6 @@ async def generate_audio_endpoint(
     if not request.script.strip():
         raise HTTPException(status_code=400, detail="Script cannot be empty")
 
-    # Deduct 1 credit per audio generation
-    current_user.credits -= 1
-    current_user.is_premium = current_user.credits > 0
-    await db.flush()
-    print(f"💳 Deducted 1 credit for audio generation. User {current_user.email} now has {current_user.credits} credits remaining")
-
     try:
         # Generate unique filename
         audio_id = uuid4().hex[:12]
@@ -101,6 +95,12 @@ async def generate_audio_endpoint(
                     success=False,
                     error="Generated audio file not found"
                 )
+            
+            # Deduct 1 credit only after successful generation
+            current_user.credits -= 1
+            current_user.is_premium = current_user.credits > 0
+            await db.flush()
+            print(f"💳 Deducted 1 credit for audio generation. User {current_user.email} now has {current_user.credits} credits remaining")
             
             # Generate storage key
             storage_key = storage_service.generate_key(

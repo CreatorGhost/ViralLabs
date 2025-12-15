@@ -25,7 +25,6 @@ from backend.routers import (
     session_router,
     script_router,
     thumbnail_router,
-    workflow_router,
     face_router,
     search_router,
     audio_router,
@@ -87,7 +86,6 @@ app.include_router(session_router)
 app.include_router(script_router)
 app.include_router(regenerate_router)
 app.include_router(thumbnail_router)
-app.include_router(workflow_router)
 app.include_router(face_router)
 app.include_router(search_router)
 app.include_router(audio_router)
